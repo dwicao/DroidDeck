@@ -299,6 +299,19 @@ static struct {
 } g_perf;
 
 static void schedule_render(void);
+static uint32_t nominal_refresh_ns(void);
+
+/* How long the guest may hold a frame, and so how fast it may draw. An explicit limit wins;
+ * otherwise the rate of the display we are actually presenting to, which the app tells us once.
+ * The average gap between the UI thread's vsync callbacks is only a fallback for a display whose
+ * rate we were never given: it drifts upward in DeX, where the callbacks come from the phone's
+ * display and stretch when its screen sleeps, and a guest paced off that estimate settles below
+ * the panel's rate for the rest of the session. */
+static int64_t pace_interval_ns(void) {
+    if (g_fps_limit > 0) return 1000000000LL / g_fps_limit;
+    if (g_output_refresh_mhz > 0) return (int64_t)nominal_refresh_ns();
+    return g_refresh_ns;
+}
 
 static int64_t now_ns(void) {
     struct timespec ts; clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -363,8 +376,7 @@ static int on_release_timer(int fd, uint32_t mask, void *data) {
 }
 
 static void release_buffer(struct surface *s, struct wl_resource *buffer, int64_t since_ns) {
-    const int limit = g_fps_limit;
-    const int64_t interval = limit > 0 ? 1000000000LL / limit : g_refresh_ns;
+    const int64_t interval = pace_interval_ns();
     if (interval <= 0 || g_release_timer_fd < 0) { wl_buffer_send_release(buffer); perf_note_release(since_ns); return; }
     int64_t now = now_ns();
     int64_t at = s->next_release_ns + interval;
@@ -3055,6 +3067,7 @@ static int on_stats_timer(void *data) {
             droiddeck_log("perf", "last 10 s: %u ticks, %u scenes, %u on screen (copy %u, zero-copy %u, layer copy %u) | "
                        "render_scene %.2f/%.2f ms | base %u black kept, %u presented | acquire %.2f/%.2f ms | "
                        "present %.2f/%.2f ms (%u) | fence wait %.2f/%.2f ms (%u, %u GPU release waits) | "
+                       "guest pace %.2f ms (limit %d, panel %.2f ms, vsync average %.2f ms) | "
                        "release %.2f/%.2f ms (%u, %u held) | %u pool drops",
                        g_perf.ticks, g_perf.scenes, g_stat_frames, g_perf.copy_scenes, zero_copy, layer_frames,
                        PERF_MS(g_perf.scene_ns, g_perf.scenes), (double)g_perf.scene_max_ns / 1e6,
@@ -3062,6 +3075,8 @@ static int on_stats_timer(void *data) {
                        PERF_MS(vp.acquire_ns, vp.acquires), (double)vp.acquire_max_ns / 1e6,
                        PERF_MS(vp.present_ns, vp.presents), (double)vp.present_max_ns / 1e6, vp.presents,
                        PERF_MS(vp.wait_ns, vp.waits), (double)vp.wait_max_ns / 1e6, vp.waits, vp.gpu_release_waits,
+                       (double)pace_interval_ns() / 1e6, g_fps_limit, (double)nominal_refresh_ns() / 1e6,
+                       (double)g_refresh_ns / 1e6,
                        PERF_MS(g_perf.release_ns, g_perf.releases), (double)g_perf.release_max_ns / 1e6,
                        g_perf.releases, g_perf.releases_held, drops);
 #undef PERF_MS

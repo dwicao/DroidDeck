@@ -103,6 +103,13 @@ class GpuStatsComponent(val dir: File) : SessionPart() {
         private const val PERIOD_MS = 500L
         private val MANGOHUD_FILES = listOf("gpu_busy_percentage", "clock_mhz", "temp")
         private const val QCOM_GPU = "/sys/kernel/gpu"
+
+        /** The GPU's current clock in MHz, for the throttle report. */
+        fun gpuMhz(): Long? = clockSources().firstNotNullOfOrNull { firstNumber(it)?.let(::mhz) }
+
+        /** The GPU's temperature in tenths of a degree, for the throttle report. */
+        fun gpuMilliCelsius(): Long? = tempSources().firstNotNullOfOrNull { firstNumber(it)?.let(::milliCelsius) }
+
         private val LOAD_SOURCES = listOf(
             "$KGSL/gpu_busy_percentage", "$KGSL/devfreq/gpu_load", "$KGSL/gpuload", "$QCOM_GPU/gpu_busy",
         )

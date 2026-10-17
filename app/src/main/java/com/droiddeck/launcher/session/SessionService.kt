@@ -315,6 +315,7 @@ class SessionService : Service() {
 
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
+        Log.i(TAG, ThrottleWatch.start(this))
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
@@ -1326,6 +1327,7 @@ class SessionService : Service() {
     private fun stopSession(status: Int) {
         cancelQueuedSteamGame()
         completeNativeSleep()
+        ThrottleWatch.stop()
         synchronized(stopLock) {
             if (!SessionState.running) return
             SessionState.running = false
@@ -1398,6 +1400,7 @@ class SessionService : Service() {
     override fun onDestroy() {
         stopSession(0)
         GameThreadHints.stop() // also when the session never got as far as running
+        ThrottleWatch.stop()
         if (screenReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false
