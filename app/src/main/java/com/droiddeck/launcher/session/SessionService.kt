@@ -731,10 +731,13 @@ class SessionService : Service() {
         if (SessionPrefs.cursorComposite(this)) guest.add("BL_CURSOR_COMPOSITE=1")
         if (com.droiddeck.launcher.core.ZramSupport.supported()) guest.add("BL_ZRAM=1")
         guest.add("BANNER_AUDIO_DIRECT_DECAY=0")
-        val extra = extraEnv() + com.droiddeck.launcher.agent.AgentEnv.beginSession(this)
+        val extra = extraEnv() + runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this) }
+            .onFailure { Log.w(TAG, "agent environment skipped", it) }
+            .getOrDefault(emptyList())
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
         extra.forEach { guest.add(it) }
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
+)
         val clientPinned = steamHere && SessionPrefs.clientCpusOverride(this)
         if (clientPinned) {
             guest.add("BL_CLIENT_CPUS=" + CpuCores.listOrAll(SessionPrefs.clientCpus(this)))
