@@ -172,7 +172,7 @@ def runtime_platform():
         entries = os.listdir(runtime)
     except OSError:
         return None
-    platforms = [os.path.join(runtime, entry) for entry in entries if entry.startswith("sniper_platform_")]
+    platforms = [os.path.join(runtime, entry) for entry in entries if "_platform_" in entry]
     platforms = [path for path in platforms if os.path.isdir(os.path.join(path, "files"))
                  and os.path.isfile(os.path.join(path, "usr-mtree.txt.gz"))]
     return max(platforms, key=platform_version, default=None)

@@ -148,6 +148,9 @@ private fun GameActions(g: Library.SteamGame, s: FrontEndState, a: FrontEndActio
         g.gameFiles?.takeIf { it.isDirectory }?.let { dir ->
             SecondaryButton(stringResource(R.string.games_files), compact = true) { a.onBrowseFiles(dir) }
         }
+        if (g.source == Library.SOURCE_STEAM && g.gameFiles?.isDirectory == true) {
+            SecondaryButton(stringResource(R.string.kit_export), compact = true) { a.onExportGameKit(g) }
+        }
         g.protonPrefix?.takeIf { it.isDirectory }?.let { dir ->
             SecondaryButton(stringResource(R.string.games_prefix), compact = true) { a.onBrowseFiles(dir) }
             if (g.library == Library.ADDED) ManageSaves(g, dir, a)
@@ -171,9 +174,6 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
             }
             MenuItem(stringResource(R.string.game_file_export), checked = false) {
                 open = false; a.onExportGameFile(g)
-            }
-            MenuItem(stringResource(R.string.kit_export), checked = false, enabled = g.source == Library.SOURCE_STEAM && g.gameFiles != null) {
-                open = false; a.onExportGameKit(g)
             }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) {
                 open = false; a.onCopyGameLink(g)
