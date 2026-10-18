@@ -21,7 +21,7 @@ internal class ProtonMenu(
     private val idle: () -> Boolean = { true },
 ) {
     var protonRows by mutableStateOf<List<ProtonRow>>(emptyList())
-    var protonBusyId by mutableStateOf<String?>(null)
+    var protonBusyId by LauncherJobs::protonBusyId
     var protonStage by mutableStateOf<String?>(null)
     var protonPercent by mutableIntStateOf(-1)
     private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
