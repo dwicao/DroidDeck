@@ -369,6 +369,22 @@ class ImportsTest(unittest.TestCase):
         self.assertEqual({str(self.game['appid']): 42}, routes)
         self.assertEqual(str(self.folder), imports.os.readlink(link))
 
+    def test_a_stamp_matches_the_fields_it_has_and_no_more(self):
+        stamp = imports.source_stamp(self.game)
+        self.assertTrue(imports.stamp_matches(stamp, stamp))
+        self.assertTrue(imports.stamp_matches(stamp[:4], stamp))
+        self.assertFalse(imports.stamp_matches(stamp + ['extra'], stamp))
+        self.assertFalse(imports.stamp_matches(stamp[:-1] + ['other'], stamp))
+
+    def test_an_import_confirmed_before_a_later_field_is_still_maintained(self):
+        stamp = imports.source_stamp(self.game)
+        imports.save_json(self.acct / 'config' / imports.STATE,
+                          dict(account='123', owned={'42': True}, candidates={str(self.folder): 42},
+                               sources={str(self.folder): stamp[:4]}))
+        games, routes = imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual([], games)
+        self.assertEqual({str(self.game['appid']): 42}, routes)
+
     def test_existing_manifest_is_never_overwritten(self):
         manifest = self.steam / 'steamapps/appmanifest_42.acf'
         manifest.parent.mkdir(parents=True)
