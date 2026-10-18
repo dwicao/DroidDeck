@@ -202,16 +202,27 @@ object AppUpdates {
 
     fun follow(context: Context, catalog: Catalog?): Follow {
         stored(context)?.let { return it }
-        val me = installed()
-        val inferred = when {
-            me.pr != 0 -> Follow(Channel.TEST, me.pr)
-            catalog == null -> return Follow(Channel.STABLE)
-            catalog.stable != null && isRunning(catalog.stable, me) -> Follow(Channel.STABLE)
-            me.updatable -> Follow(Channel.NIGHTLY)
-            else -> Follow(Channel.STABLE)
-        }
-        setFollow(context, inferred)
-        return inferred
+        val guess = guessFollow(catalog, installed())
+        if (guess.certain) setFollow(context, guess.follow)
+        return guess.follow
+    }
+
+    internal class Guess(val follow: Follow, val certain: Boolean)
+
+    /**
+     * Stable and Preview builds of one commit are the same APK, so only the catalog can tell them apart. A guess that
+     * the catalog does not prove (a stale cache, the gap before a release is catalogued) is used for this run only.
+     */
+    internal fun guessFollow(catalog: Catalog?, me: Installed): Guess {
+        if (me.pr != 0) return Guess(Follow(Channel.TEST, me.pr), true)
+        val stable = catalog?.stable
+        if (stable != null && isRunning(stable, me)) return Guess(Follow(Channel.STABLE), true)
+        if (stable?.version?.let { compareVersions(me.version, it) < 0 } == true) return Guess(Follow(Channel.STABLE), true)
+        val publishedPreview = catalog != null && me.updatable && (
+            catalog.preview?.let { isRunning(it, me) } == true ||
+                catalog.recentPreviews.any { matchesInstalledCommit(it.commit, me.commit) }
+            )
+        return Guess(Follow(if (publishedPreview) Channel.NIGHTLY else Channel.STABLE), false)
     }
 
     fun setFollow(context: Context, follow: Follow) {

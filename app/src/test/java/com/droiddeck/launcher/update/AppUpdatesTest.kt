@@ -8,6 +8,7 @@ import com.droiddeck.launcher.update.AppUpdates.Offer
 import com.droiddeck.launcher.update.AppUpdates.PreviewChange
 import com.droiddeck.launcher.update.AppUpdates.PreviewHistoryKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.json.JSONArray
@@ -284,5 +285,39 @@ class AppUpdatesTest {
             fail("wrong signer should be rejected")
         } catch (_: IOException) {
         }
+    }
+
+    @Test fun anOlderStableIsGuessedStableAndSaved() {
+        val g = AppUpdates.guessFollow(catalog, me("eeeeeee999", version = "0.1.9"))
+        assertEquals(AppUpdates.Channel.STABLE, g.follow.channel)
+        assertTrue(g.certain)
+    }
+
+    @Test fun runningTheCatalogStableIsCertainStable() {
+        val g = AppUpdates.guessFollow(catalog, me(stable.commit))
+        assertEquals(AppUpdates.Channel.STABLE, g.follow.channel)
+        assertTrue(g.certain)
+    }
+
+    @Test fun aPublishedPreviewPastStableIsNightlyButNotSaved() {
+        val withHistory = AppUpdates.Catalog(stable, release("1111111"), emptyList(), 0L, recentPreview)
+        val g = AppUpdates.guessFollow(withHistory, me("2".repeat(40), version = "0.3.0"))
+        assertEquals(AppUpdates.Channel.NIGHTLY, g.follow.channel)
+        assertFalse(g.certain)
+    }
+
+    @Test fun anUncataloguedNewerBuildStaysStableForNow() {
+        val g = AppUpdates.guessFollow(catalog, me("9".repeat(40), version = "0.3.0"))
+        assertEquals(AppUpdates.Channel.STABLE, g.follow.channel)
+        assertFalse(g.certain)
+        val offline = AppUpdates.guessFollow(null, me("9".repeat(40), version = "0.3.0"))
+        assertEquals(AppUpdates.Channel.STABLE, offline.follow.channel)
+        assertFalse(offline.certain)
+    }
+
+    @Test fun aPullRequestBuildIsCertainTest() {
+        val g = AppUpdates.guessFollow(catalog, me("ccccccc2222222222222222222222222222222", pr = 93))
+        assertEquals(AppUpdates.Channel.TEST, g.follow.channel)
+        assertTrue(g.certain)
     }
 }
