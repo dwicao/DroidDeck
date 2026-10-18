@@ -34,6 +34,7 @@ import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.runtime.LinuxFex
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
@@ -70,6 +71,7 @@ import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.GameFiles
 import com.droiddeck.launcher.frontend.GameFileSync
 import com.droiddeck.launcher.frontend.GameLaunchIntent
+import com.droiddeck.launcher.frontend.SessionInstalls
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
@@ -101,6 +103,8 @@ class MainActivity : ComponentActivity() {
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
     private var removalPending by mutableStateOf(false)
+    private var fexMissing by mutableStateOf<List<Pair<Int, String>>>(emptyList())
+    private var fexReady by mutableStateOf(true)
     private var available by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var busy by mutableStateOf(false)
     private var stage by mutableStateOf("")
@@ -478,6 +482,22 @@ class MainActivity : ComponentActivity() {
         if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
     }
 
+    /**
+     * The client installs it like any other depot, which is the only way these two exist on the
+     * guest. Started one at a time, as the guest asks for them: a second press picks up whatever
+     * is still missing once the first download has landed.
+     */
+    private fun installFex(appId: Int) {
+        val still = LinuxFex.missing(SessionInstalls.steamappsDirs(this))
+        if (still.none { it.first == appId }) return
+        if (SessionState.running) return
+        startSession(
+            Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_STEAM_URL, "steam://install/$appId"),
+            steamSession = true,
+        )
+    }
+
     private fun pickGameExportKit(game: Library.SteamGame) {
         val source = com.droiddeck.launcher.frontend.GameKit.source(this, game.appId)
         val blocked = source?.let { com.droiddeck.launcher.frontend.GameKit.gates(it) } ?: emptyList()
@@ -649,6 +669,7 @@ class MainActivity : ComponentActivity() {
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
+                        fexReady = fexReady, fexMissing = fexMissing,
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
@@ -700,6 +721,7 @@ class MainActivity : ComponentActivity() {
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
+                        onInstallFex = { appId -> installFex(appId) },
                         onSteamUrl = { url ->
                             if (!SessionState.running) startSession(
                                 Intent(this, SessionActivity::class.java).putExtra(SessionService.EXTRA_STEAM_URL, url), steamSession = true,
@@ -1728,6 +1750,8 @@ class MainActivity : ComponentActivity() {
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
+        fexReady = LinuxFex.ready(this)
+        fexMissing = if (ready) LinuxFex.missing(SessionInstalls.steamappsDirs(this)) else emptyList()
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)

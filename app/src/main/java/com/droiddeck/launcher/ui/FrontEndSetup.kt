@@ -327,7 +327,19 @@ internal fun SetupPanel(
                                 }
                             }
                         }
-                        SettingsGroup(stringResource(R.string.setup_runtime)) { runtimeCheck(false) }
+                        SettingsGroup(stringResource(R.string.setup_runtime)) {
+                            runtimeCheck(false)
+                            if (s.fexMissing.isNotEmpty()) {
+                                ActionRow(
+                                    stringResource(R.string.setup_fex),
+                                    stringResource(R.string.setup_fex_missing, s.fexMissing.joinToString { it.second }),
+                                    stringResource(R.string.setup_fex_install),
+                                    { s.fexMissing.first().let { a.onInstallFex(it.first) } },
+                                )
+                            } else if (!s.fexReady) {
+                                Note(stringResource(R.string.setup_fex_not_ready))
+                            }
+                        }
                     }
                     1 -> {
                         val controller = s.controller

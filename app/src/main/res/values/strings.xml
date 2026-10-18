@@ -697,6 +697,10 @@
     <string name="setup_installed">Installed</string>
     <string name="setup_runtime_update">%1$s · update available</string>
     <string name="setup_runtime_current">%1$s · up to date</string>
+    <string name="setup_fex">x86 games</string>
+    <string name="setup_fex_missing">%1$s is missing from your Steam library. An x86-64 game started before they are installed opens for a second and exits. Games that already run on ARM64 do not need this.</string>
+    <string name="setup_fex_install">Install in Steam</string>
+    <string name="setup_fex_not_ready">The x86 runtime is installed but not prepared yet. Start a session once and DroidDeck finishes the setup.</string>
     <string name="setup_limit">Child-process limit</string>
     <string name="setup_limit_on">On · Android may close Steam. Turning it off takes a minute.</string>
     <string name="setup_limit_unset">Not set · Android may close Steam. Turning it off takes a minute.</string>

@@ -15,6 +15,16 @@ object LinuxFex {
     const val ELF_I386 = 3
     const val ELF_X86_64 = 62
     const val ELF_AARCH64 = 183
+
+    /** Steam's x86-64 emulator, which is what runs a Windows x86-64 game under Proton here. */
+    const val FEX_APPID = 3127680
+
+    /** The runtime FEX translates inside; the guest takes its RootFS from this depot's files. */
+    const val SNIPER_APPID = 1628350
+
+    /** The order the guest asks for them in, so an offered install is the one actually missing. */
+    val DEPENDENCIES = listOf(SNIPER_APPID to "Steam Linux Runtime 3.0", FEX_APPID to "FEX-Emu")
+
     private const val MODE_FILE = "fex"
     private const val ARCH_FILE = "arch"
     private const val STATUS = "root/.local/share/droiddeck-fex/status.json"
@@ -22,6 +32,16 @@ object LinuxFex {
     fun ready(context: Context): Boolean =
         FileUtils.readString(File(LinuxRuntime.rootDir(context), STATUS))
             ?.let { runCatching { JSONObject(it).optBoolean("ready") }.getOrNull() } == true
+
+    /**
+     * The x86 runtime's prerequisites still absent from every steamapps directory. The guest
+     * reports "Invalid or Unsupported elf file" and the game exits when this is not empty, a
+     * failure nothing on screen mentions.
+     */
+    fun missing(steamappsDirs: List<File>): List<Pair<Int, String>> =
+        DEPENDENCIES.filterNot { (appId, _) ->
+            steamappsDirs.any { dir -> File(dir, "appmanifest_$appId.acf").isFile }
+        }
 
     fun mode(dir: File): String = FileUtils.readString(File(dir, MODE_FILE))?.trim()?.takeIf { it in MODES } ?: AUTO
 
