@@ -1,0 +1,13 @@
+"compatibilitytools"
+{
+	"compat_tools"
+	{
+		"droiddeck-fex"
+		{
+			"install_path" "."
+			"display_name" "Linux x86 (FEX)"
+			"from_oslist" "linux"
+			"to_oslist" "linux"
+		}
+	}
+}

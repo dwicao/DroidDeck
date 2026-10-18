@@ -1,0 +1,6 @@
+#!/bin/bash
+verb=$1; shift
+case $verb in
+  getcompatpath | getnativepath) printf '%s\n' "$1"; exit 0 ;;
+esac
+exec /usr/local/bin/droiddeck-fex steam "$verb" "$@"

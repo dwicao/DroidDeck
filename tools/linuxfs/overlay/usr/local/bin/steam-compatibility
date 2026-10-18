@@ -1270,12 +1270,15 @@ def main():
             print("steam-compatibility: %s" % summary)
     # Asked here rather than only from droiddeck-fex, which does not run at all unless its own
     # marker already exists: an x86-64 game started without these opens for a second and exits
-    # with "Invalid or Unsupported elf file", which nothing on screen mentions.
-    try:
-        for app in request_fex(steam_root, set()):
-            print("steam-compatibility: asked the client to install %s (x86 games need it)" % app)
-    except Exception as e:
-        print("steam-compatibility: could not ask for the x86 runtime (%s)" % e)
+    # with "Invalid or Unsupported elf file", which nothing on screen mentions. Guarded exactly
+    # as the original caller guards it - request_fex runs the client's binary to forward the URL,
+    # which at session start would launch a second client that the real launch then refuses.
+    if steam_running():
+        try:
+            for app in request_fex(steam_root, set()):
+                print("steam-compatibility: asked the client to install %s (x86 games need it)" % app)
+        except Exception as e:
+            print("steam-compatibility: could not ask for the x86 runtime (%s)" % e)
 
 
 if __name__ == "__main__":

@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import android.Manifest
 import android.app.ActivityOptions
 import android.content.Intent
+import android.widget.Toast
 import android.content.ClipData
 import android.content.ClipboardManager
 import java.io.File
@@ -490,7 +491,12 @@ class MainActivity : ComponentActivity() {
     private fun installFex(appId: Int) {
         val still = LinuxFex.missing(SessionInstalls.steamappsDirs(this))
         if (still.none { it.first == appId }) return
-        if (SessionState.running) return
+        if (SessionState.running) {
+            // Starting a second session here hands the URL to a client that is already up and
+            // ends that session instead, so the install never runs and nothing says why.
+            Toast.makeText(this, R.string.setup_fex_session_open, Toast.LENGTH_LONG).show()
+            return
+        }
         startSession(
             Intent(this, SessionActivity::class.java)
                 .putExtra(SessionService.EXTRA_STEAM_URL, "steam://install/$appId"),
