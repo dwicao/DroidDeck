@@ -416,6 +416,8 @@ case $mode in
     droiddeck-steam-library "$steam_root" || true
     step "setting up the ARM64 Proton compatibility tool"
     steam-compatibility "$steam_root" || true
+    step "preparing the x86 runtime for FEX"
+    /usr/local/bin/droiddeck-fex prepare >/dev/null 2>&1 || true
     if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi

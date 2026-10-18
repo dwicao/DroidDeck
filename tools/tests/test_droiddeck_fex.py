@@ -287,11 +287,38 @@ class PrepareTest(FexTestCase):
 
     def test_a_missing_server_is_not_ready(self):
         self.fex_tool(server=False)
-        self.runtime()
+        platform = self.runtime()
         with mock.patch.dict(G, {"steam_running": lambda: False}), mock.patch("shutil.which", return_value=None):
             fex, said = self.quiet(FEX["prepare"])
-        self.assertIsNone(fex)
+        self.assertIsNotNone(fex)
+        self.assertEqual(fex["rootfs"], str(platform / "files"))
         self.assertIn("FEXServer beside", said)
+        status = json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())
+        self.assertFalse(status["ready"])
+
+    def test_soldier_runtime_is_used_when_sniper_is_absent(self):
+        self.fex_tool(server=False)
+        version = "3.0.20260101.0"
+        soldier = self.steam / "steamapps/common/SteamLinuxRuntime_soldier" / ("soldier_platform_" + version)
+        (soldier / "files").mkdir(parents=True)
+        self.write(soldier / "usr-mtree.txt.gz", gzip.compress(b"# mtree\n"))
+        with mock.patch.dict(G, {"steam_running": lambda: False}):
+            fex, said = self.quiet(FEX["prepare"])
+        self.assertEqual(FEX["runtime_platform"](), str(soldier))
+        self.assertTrue((soldier / "files" / ".droiddeck-fex").is_file())
+        self.assertIn("prepared soldier_platform_", said)
+        status = json.loads((self.home / ".local/share/droiddeck-fex/status.json").read_text())
+        self.assertFalse(status["ready"])
+        self.assertTrue((self.home / ".config/droiddeck/fex-wanted").is_file())
+
+    def test_prepare_points_default_rootfs_at_materialized_runtime(self):
+        self.fex_tool()
+        platform = self.runtime()
+        fake_default = self.tmp / "guestos" / "fex-mesa"
+        with mock.patch.dict(G, {"DEFAULT_ROOTFS": str(fake_default), "steam_running": lambda: False}):
+            self.quiet(FEX["prepare"])
+        self.assertTrue(os.path.islink(fake_default))
+        self.assertEqual(os.readlink(fake_default), str(platform / "files"))
 
 
 class ExtractTest(FexTestCase):

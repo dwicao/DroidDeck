@@ -28,9 +28,14 @@ URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
-INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper"}
+SOLDIER_APPID = "1391110"
+INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper", SOLDIER_APPID: "SteamLinuxRuntime_soldier"}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
+# Where FEX falls back to on AArch64 hosts when no FEX_ROOTFS is set. Valve's
+# FEX depot ships with this path hard-coded; point it at the platform we
+# materialized from the installed Steam Linux Runtime.
+DEFAULT_ROOTFS = "/usr/share/guestos/fex-mesa"
 GUEST_LIBDIRS = (("x86_64", "lib/x86_64-linux-gnu"), ("i386", "lib/i386-linux-gnu"))
 PRELOAD_NAMES = ("libblsession.so", "libfakeinput.so")
 FAULT_REPORT = "libfaultreport.so"
@@ -165,7 +170,7 @@ def platform_version(path):
 
 
 def runtime_platform():
-    runtime = app_dir(SNIPER_APPID)
+    runtime = app_dir(SNIPER_APPID) or app_dir(SOLDIER_APPID)
     if not runtime:
         return None
     try:
@@ -232,6 +237,21 @@ def materialize(platform):
         os.symlink(b".", usr)
     write_if_changed(marker, stamp)
     return True
+
+
+def point_default_rootfs(root):
+    target = DEFAULT_ROOTFS
+    try:
+        if os.path.islink(target):
+            if os.readlink(target) == root:
+                return
+            os.unlink(target)
+        elif os.path.isdir(target) and not os.path.lexists(target):
+            return
+        os.makedirs(os.path.dirname(target), exist_ok=True)
+        os.symlink(root, target)
+    except OSError:
+        pass
 
 
 def host_preloads():
@@ -324,34 +344,40 @@ def prepare():
     with locked():
         fex = fex_install()
         platform = runtime_platform()
-        status = describe(fex, platform)
-        if not status["ready"]:
-            missing = []
-            tool = app_dir(FEX_APPID)
-            if not fex and tool:
-                say("FEX is installed at %s but holds no FEX or FEXInterpreter in usr/bin, bin or files; it has: %s"
-                    % (tool, ", ".join(sorted(os.listdir(tool))[:20])))
-            if not fex:
-                missing.append("FEX (Steam app %s)" % FEX_APPID)
-            elif not fex["server"]:
-                missing.append("FEXServer beside %s" % fex["bin"])
-            if not platform:
-                missing.append("Steam Linux Runtime 3.0 (sniper, Steam app %s)" % SNIPER_APPID)
+        root = None
+        if platform:
+            root = os.path.join(platform, "files")
+            materialized = materialize(platform)
+            install_preloads(root)
+            point_default_rootfs(root)
+            if materialized:
+                say("prepared %s as the x86 runtime" % os.path.basename(platform))
+        missing = []
+        tool = app_dir(FEX_APPID)
+        if not fex and tool:
+            say("FEX is installed at %s but holds no FEX or FEXInterpreter in usr/bin, bin or files; it has: %s"
+                % (tool, ", ".join(sorted(os.listdir(tool))[:20])))
+        if not fex:
+            missing.append("FEX (Steam app %s)" % FEX_APPID)
+        elif not fex["server"]:
+            missing.append("FEXServer beside %s" % fex["bin"])
+        if not platform:
+            missing.append("Steam Linux Runtime 3.0 (sniper, Steam app %s)" % SNIPER_APPID)
+        if missing:
             requested = request_install()
             say("x86 Linux programs need %s; %s" % (" and ".join(missing),
                 "the Steam client was asked to install it" if requested else "open Steam once and it is installed for you"))
-            write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
-            return None
-        root = os.path.join(platform, "files")
-        if materialize(platform):
-            say("prepared %s as the x86 runtime" % os.path.basename(platform))
-        install_preloads(root)
-        write_config(fex, root)
-        fex["rootfs"] = root
-        try:
-            link_steam_sdk()
-        except OSError:
-            pass
+            write_if_changed(STATUS_FILE, json.dumps(describe(fex, platform), indent=2) + "\n")
+            if fex and root:
+                fex["rootfs"] = root
+            return fex if fex else None
+        if fex:
+            write_config(fex, root)
+            fex["rootfs"] = root
+            try:
+                link_steam_sdk()
+            except OSError:
+                pass
         status = describe(fex, platform)
         write_if_changed(STATUS_FILE, json.dumps(status, indent=2) + "\n")
         with contextlib.suppress(OSError):
