@@ -2359,6 +2359,30 @@
     <string name="storage_session_running">Stop the session to clean up or remove anything. Sizes are still shown.</string>
     <string name="storage_where">Where it goes</string>
     <string name="storage_games">Steam games</string>
+    <string name="kit_library_internal">Internal storage</string>
+
+    <string name="kit_title">Game kit</string>
+    <string name="kit_hint">The game\'s files and the manifest that records which depot build they are, so Steam adopts them without downloading again.</string>
+    <string name="kit_export">Export kit</string>
+    <string name="kit_export_done">Exported %1$s (%2$s) to %3$s</string>
+    <string name="kit_export_busy">Packaging %1$s…</string>
+    <string name="kit_import">Import a kit</string>
+    <string name="kit_import_pick">Choose a kit to import</string>
+    <string name="kit_import_done">%1$s is in %2$s. Steam reads it at its next start.</string>
+    <string name="kit_import_short">%1$s imported, but %2$s is short of what the manifest records. Steam will download the difference.</string>
+    <string name="kit_import_no_pick">No kit was chosen</string>
+    <string name="kit_import_not_a_kit">That file carries no Steam manifest</string>
+    <string name="kit_import_already">%1$s is already in that library</string>
+    <string name="kit_import_restart">Restarting Steam so it picks the kit up…</string>
+    <string name="kit_target">Import into</string>
+    <string name="kit_export_title">Export %1$s</string>
+
+    <string name="kit_gate_not_installed">%1$s is not finished installing yet.</string>
+    <string name="kit_gate_no_depot_record">%1$s has no depot record, so Steam has nothing to compare the files against and will download them again. A kit only helps for a game Steam itself downloaded.</string>
+    <string name="kit_gate_no_files">%1$s\'s files are missing.</string>
+    <string name="kit_gate_short">%1$s\'s folder is short of what its manifest records. Steam will download the difference anyway.</string>
+    <string name="kit_build">build %1$s, %2$d depot(s)</string>
+    <string name="kit_stored_size">%1$s of %2$s</string>
     <string name="storage_game_data">Game data</string>
     <string name="storage_game_data_hint">Prefixes %1$s · workshop %2$s · shaders %3$s</string>
     <string name="storage_tools">Proton &amp; runtimes</string>

@@ -177,6 +177,35 @@ class ImportsTest(unittest.TestCase):
             self.winnative_manifest(flags, installdir)
             self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
 
+    def library_manifest(self, flags='4', installdir='Example'):
+        """The manifest Steam itself writes beside a game in a library copied from a PC."""
+        path = self.folder.parent.parent / 'appmanifest_42.acf'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"%s"\n\t"installdir"\t\t"%s"\n'
+                        '\t"buildid"\t\t"7"\n\t"InstalledDepots"\n\t{\n\t\t"43"\n\t\t{\n\t\t\t"manifest"\t\t"99"\n'
+                        '\t\t\t"size"\t\t"4"\n\t\t}\n\t}\n}\n' % (flags, installdir))
+        return path
+
+    def test_copied_library_manifest_carries_installed_build(self):
+        # The whole point of copying the manifest with the folder: Steam keeps the files it finds
+        # instead of downloading them again, because the depot record travelled with the files.
+        source = self.library_manifest()
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        text = (self.steam / 'steamapps/appmanifest_42.acf').read_text()
+        self.assertEqual(source.read_text().replace('"Example"', '"DroidDeck-42"'), text)
+        self.assertIn('"InstalledDepots"', text)
+
+    def test_copied_library_manifest_identifies_folder(self):
+        self.library_manifest()
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
+            self.assertEqual(42, imports.identify(self.game))
+
+    def test_incomplete_copied_library_manifest_is_ignored(self):
+        for flags, installdir in [('1026', 'Example'), ('4', 'Other')]:
+            self.library_manifest(flags, installdir)
+            self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
     def test_depot_config_records_installed_depots(self):
         config = self.folder / '.DepotDownloader/depot.config'
         config.parent.mkdir()

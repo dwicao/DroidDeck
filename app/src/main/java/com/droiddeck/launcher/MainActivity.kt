@@ -473,6 +473,70 @@ class MainActivity : ComponentActivity() {
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
     }
 
+    private val pickOpenKit = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
+    }
+
+    private fun pickGameExportKit(game: Library.SteamGame) {
+        val source = com.droiddeck.launcher.frontend.GameKit.source(this, game.appId)
+        val blocked = source?.let { com.droiddeck.launcher.frontend.GameKit.gates(it) } ?: emptyList()
+        if (blocked.isNotEmpty()) {
+            val detail = when (blocked.first()) {
+                com.droiddeck.launcher.frontend.GameKit.Gate.NOT_INSTALLED -> getString(R.string.kit_gate_not_installed, game.name)
+                com.droiddeck.launcher.frontend.GameKit.Gate.NO_DEPOT_RECORD -> getString(R.string.kit_gate_no_depot_record, game.name)
+                com.droiddeck.launcher.frontend.GameKit.Gate.NO_FILES -> getString(R.string.kit_gate_no_files, game.name)
+                com.droiddeck.launcher.frontend.GameKit.Gate.SHORT -> getString(R.string.kit_gate_short, game.name)
+            }
+            android.widget.Toast.makeText(this, detail, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        onSavePicked = { folder ->
+            saveAction(getString(R.string.kit_export_busy, game.name)) {
+                val saved = com.droiddeck.launcher.frontend.GameKit.export(
+                    source = source!!, destination = folder,
+                    onProgress = { p -> ui.post { /* progress could be shown */ } },
+                )
+                getString(R.string.kit_export_done, game.name, com.droiddeck.launcher.frontend.GameKit.formatSize(saved.measured.bytes), saved.archive.path)
+            }
+        }
+        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.kit_export_title, game.name)))
+    }
+
+    private fun pickGameImportKit() {
+        val targets = com.droiddeck.launcher.frontend.GameKit.targets(this)
+        if (targets.isEmpty()) {
+            android.widget.Toast.makeText(this, R.string.kit_import_no_pick, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Build a tiny choice: for now just import into the internal Steam library.
+        // A full library chooser can be added later; the internal library is always present.
+        val library = targets.last { it.second == java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(this), "root/.local/share/Steam") }
+            ?: targets.first()
+        onSavePicked = { file ->
+            saveAction(getString(R.string.kit_import)) {
+                val imported = com.droiddeck.launcher.frontend.GameKit.import(
+                    archive = file, library = library.second,
+                    onProgress = { p -> ui.post { /* progress */ } },
+                )
+                com.droiddeck.launcher.frontend.GameKit.requestPickup(this)
+                val note = if (imported.shortBy > 0L)
+                    getString(R.string.kit_import_short, gameName(imported.kit), com.droiddeck.launcher.frontend.GameKit.formatSize(imported.shortBy))
+                else
+                    getString(R.string.kit_import_done, gameName(imported.kit), library.first)
+                ui.post {
+                    android.widget.Toast.makeText(this, note, android.widget.Toast.LENGTH_LONG).show()
+                }
+                note
+            }
+        }
+        pickOpenKit.launch(InAppFilePicker.buildIntent(
+            this, extensions = listOf("tar.zst"), title = getString(R.string.kit_import_pick)))
+    }
+
+    private fun gameName(kit: com.droiddeck.launcher.frontend.GameKit.Kit): String =
+        kit.name.takeIf { it.isNotBlank() } ?: kit.appId.toString()
+
     private fun readGameIntent(request: Intent) {
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
@@ -655,6 +719,8 @@ class MainActivity : ComponentActivity() {
                         },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
+                        onExportGameKit = { g -> pickGameExportKit(g) },
+                        onImportGameKit = { pickGameImportKit() },
                         onSyncGameFiles = { pickGameExport(null) },
                         onAddGameExe = { path -> addGameExe(path) },
                         onAddedGamesChanged = { folders ->

@@ -172,6 +172,9 @@ private fun GameShortcutMenu(g: Library.SteamGame, a: FrontEndActions) {
             MenuItem(stringResource(R.string.game_file_export), checked = false) {
                 open = false; a.onExportGameFile(g)
             }
+            MenuItem(stringResource(R.string.kit_export), checked = false, enabled = g.source == Library.SOURCE_STEAM && g.gameFiles != null) {
+                open = false; a.onExportGameKit(g)
+            }
             MenuItem(stringResource(R.string.game_link_copy), checked = false) {
                 open = false; a.onCopyGameLink(g)
             }

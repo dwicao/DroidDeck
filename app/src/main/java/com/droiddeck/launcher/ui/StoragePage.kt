@@ -456,6 +456,7 @@ private fun GamesView(report: StorageReport, sessionRunning: Boolean, a: FrontEn
     SubHeader(stringResource(R.string.storage_games), stringResource(R.string.storage_games_with_data, gb(report.games.sumOf { it.total })), onBack)
     Box(Modifier.fillMaxWidth().padding(bottom = 10.dp)) {
         SheetChips(listOf(stringResource(R.string.storage_sort_largest), stringResource(R.string.storage_sort_least_played), stringResource(R.string.storage_sort_sd)), sort, null) { sort = it }
+        SecondaryButton(stringResource(R.string.kit_import), compact = true) { a.onImportGameKit() }
     }
     if (sessionRunning) { Note(stringResource(R.string.storage_session_running)); Spacer(Modifier.height(8.dp)) }
     Column(Modifier.fillMaxWidth().clip(Shape14).background(colors.surface).border(1.dp, pal.line, Shape14)) {
