@@ -367,6 +367,8 @@ class MainActivity : ComponentActivity() {
     private var settingsMode by mutableStateOf<String?>(null)
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
+    private var x86FexTool by mutableStateOf(com.droiddeck.launcher.core.GameEnvironment.X86_FEX_VALVE)
+    private var x86FexDebug by mutableStateOf(false)
     private var forceSsbs by mutableStateOf(false)
     private var runSteamAtStartup by mutableStateOf(false)
     private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
@@ -1284,6 +1286,8 @@ class MainActivity : ComponentActivity() {
         showMapping = false
         showComponents = true
         fexPreset = SessionPrefs.fexPreset(this)
+        x86FexTool = SessionPrefs.x86FexTool(this)
+        x86FexDebug = SessionPrefs.x86FexDebug(this)
         forceSsbs = SessionPrefs.forceSsbs(this)
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
@@ -1329,6 +1333,10 @@ class MainActivity : ComponentActivity() {
             games = steamGames,
             generalFexPreset = fexPreset,
             onGeneralFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
+            x86FexTool = x86FexTool,
+            onX86FexTool = { id -> SessionPrefs.setX86FexTool(this, id); x86FexTool = id },
+            x86FexDebug = x86FexDebug,
+            onX86FexDebug = { on -> SessionPrefs.setX86FexDebug(this, on); x86FexDebug = on },
             gpu = drivers.state(),
             gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
                 onAuto = { on -> drivers.setMode(on) },
@@ -1666,6 +1674,8 @@ class MainActivity : ComponentActivity() {
         unfoldedControls = SessionPrefs.unfoldedControls(this)
         resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)
+        x86FexTool = SessionPrefs.x86FexTool(this)
+        x86FexDebug = SessionPrefs.x86FexDebug(this)
         forceSsbs = SessionPrefs.forceSsbs(this)
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)

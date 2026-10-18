@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import urllib.parse
 from unittest.mock import Mock, patch
 
 BIN = Path(__file__).resolve().parents[1] / 'linuxfs/overlay/usr/local/bin'
@@ -207,11 +208,12 @@ class ImportsTest(unittest.TestCase):
             self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
 
     def test_depot_config_records_installed_depots(self):
+        # DepotDownloader only ever writes depot.config, so the depot records are the signal; the
+        # completion marker belongs to WinNative/GameNative downloads, which is what a partial
+        # download from those tools is caught by (fewer depots, never more).
         config = self.folder / '.DepotDownloader/depot.config'
         config.parent.mkdir()
         config.write_text(json.dumps({'installedManifestIDs': {'43': 99}}))
-        self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
-        (self.folder / '.download_complete').touch()
         self.snapshot()
         imports.route(self.steam, self.acct, [self.game])
         text = (self.steam / 'steamapps/appmanifest_42.acf').read_text()
@@ -219,6 +221,105 @@ class ImportsTest(unittest.TestCase):
         self.assertTrue(text.endswith('    }\n}\n'))
         config.write_text(json.dumps({'installedManifestIDs': {'43': 0x7FFFFFFFFFFFFFFF}}))
         self.assertIsNone(imports.installed_build(self.folder, 42, 'DroidDeck-42'))
+
+    def staged_update(self, appid=42, buildid='0'):
+        """What Steam leaves behind when it takes over an import and stages an update."""
+        path = self.steam / ('steamapps/appmanifest_%s.acf' % appid)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('"AppState"\n{\n\t"appid"\t\t"42"\n\t"Universe"\t\t"1"\n\t"name"\t\t"Example"\n'
+                        '\t"StateFlags"\t\t"6"\n\t"SizeOnDisk"\t\t"4"\n\t"installdir"\t\t"DroidDeck-42"\n'
+                        '\t"buildid"\t\t"%s"\n\t"UpdateResult"\t\t"4"\n\t"StagingSize"\t\t"10"\n'
+                        '\t"BytesToDownload"\t\t"100"\n\t"BytesDownloaded"\t\t"80"\n'
+                        '\t"BytesToStage"\t\t"90"\n\t"BytesStaged"\t\t"10"\n'
+                        '\t"TargetBuildID"\t\t"777"\n\t"InstalledDepots"\n\t{\n\t}\n'
+                        '\t"StagedDepots"\n\t{\n\t\t"43"\n\t\t{\n\t\t\t"manifest"\t\t"99"\n'
+                        '\t\t\t"size"\t\t"4"\n\t\t\t"dlcappid"\t\t"0"\n\t\t}\n\t}\n}\n' % buildid)
+        return path
+
+    def test_a_stalled_update_of_an_import_is_finished_from_steams_staging_record(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.staged_update()
+        imports.route(self.steam, self.acct, [self.game])
+        text = path.read_text()
+        self.assertNotIn('"StagedDepots"', text)
+        self.assertIn('"StateFlags"\t\t"4"', text)
+        self.assertIn('"buildid"\t\t"777"', text)
+        self.assertIn('"UpdateResult"\t\t"0"', text)
+        self.assertIn('"StagingSize"\t\t"0"', text)
+        self.assertIn('"BytesDownloaded"\t\t"100"', text)
+        self.assertIn('"BytesStaged"\t\t"90"', text)
+        self.assertEqual(1, text.count('"InstalledDepots"'))
+        self.assertIn('"InstalledDepots"\n\t{\n\t\t"43"\n\t\t{\n\t\t\t"manifest"\t\t"99"\n\t\t\t"size"\t\t"4"\n\t\t}\n\t}',
+                      text)
+
+    def test_a_staged_update_of_a_finished_build_is_left_alone(self):
+        self.snapshot()
+        imports.route(self.steam, self.acct, [self.game])
+        path = self.staged_update(buildid='777')
+        before = path.read_text()
+        imports.route(self.steam, self.acct, [self.game])
+        self.assertEqual(before, path.read_text())
+
+    def test_the_importer_records_what_it_seeded_for_the_log_bundle(self):
+        self.snapshot()
+        config = self.folder / '.DepotDownloader/depot.config'
+        config.parent.mkdir()
+        config.write_text(json.dumps({'installedManifestIDs': {'43': 99}}))
+        debug = self.root / 'debug'
+        with patch.dict(os.environ, {'BL_DEBUG_DIR': str(debug), 'HOME': str(self.root)}):
+            imports.route(self.steam, self.acct, [self.game])
+        status = json.loads((self.root / '.local/share/droiddeck-games/status.json').read_text())
+        self.assertEqual(['42'], sorted(status['seeds']))
+        self.assertIn('"InstalledDepots"', status['seeds']['42']['manifest'])
+        self.assertEqual([], status['downloading'])
+        (self.steam / 'steamapps/downloading/42').mkdir(parents=True)
+        with patch.dict(os.environ, {'BL_DEBUG_DIR': str(debug), 'HOME': str(self.root)}):
+            imports.route(self.steam, self.acct, [self.game])
+        status = json.loads((self.root / '.local/share/droiddeck-games/status.json').read_text())
+        self.assertEqual(['42'], status['downloading'])
+
+    def test_store_search_tries_the_spellings_that_normalize_alike(self):
+        terms = []
+
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            @staticmethod
+            def read(*args):
+                items = [] if ' - ' in terms[-1] else [{'id': 349040, 'name': 'NARUTO SHIPPUDEN: Ultimate Ninja STORM 4'}]
+                return json.dumps({'items': items}).encode()
+
+        def urlopen(url, timeout=None):
+            terms.append(urllib.parse.unquote(url.rsplit('term=', 1)[1]))
+            return Response()
+
+        game = dict(self.game, name='NARUTO SHIPPUDEN - Ultimate Ninja STORM 4')
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=urlopen):
+            self.assertEqual(349040, imports.identify(game))
+        self.assertTrue(any(' - ' in term for term in terms))
+        self.assertTrue(any(' - ' not in term for term in terms))
+
+    def test_the_apps_own_app_id_is_used_before_a_store_lookup(self):
+        with patch.object(imports.urllib.request, 'urlopen', side_effect=AssertionError):
+            self.assertEqual(42, imports.identify(dict(self.game, steam_id=42)))
+            self.assertRaises(AssertionError, imports.identify, dict(self.game, steam_id='42'))
+
+    def test_a_manifest_in_another_library_carries_the_build(self):
+        library = self.root / 'OtherLibrary/steamapps'
+        library.mkdir(parents=True)
+        (library / 'appmanifest_42.acf').write_text(
+            '"AppState"\n{\n\t"appid"\t\t"42"\n\t"StateFlags"\t\t"4"\n\t"installdir"\t\t"Example"\n'
+            '\t"buildid"\t\t"7"\n\t"InstalledDepots"\n\t{\n\t\t"43"\n\t\t{\n\t\t\t"manifest"\t\t"99"\n'
+            '\t\t}\n\t}\n}\n')
+        with patch.object(imports, 'libraries', return_value=[Path(library.parent)]):
+            build = imports.installed_build(self.folder, 42, 'DroidDeck-42', str(self.steam))
+        self.assertIn('"InstalledDepots"', build)
+        self.assertIn('"DroidDeck-42"', build)
 
     def test_bare_import_manifest_gains_installed_build(self):
         self.snapshot()

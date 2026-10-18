@@ -31,6 +31,23 @@ or unreadable original is an error, not permission to delete the component's fil
 If an original is missing after a build may already have used a game override,
 DroidDeck refuses to capture those potentially modified files as originals.
 
+## x86 Linux titles
+
+Linux titles built for x86-64 are started through FEX. The session registers a
+DroidDeck-owned compatibility tool for them, because the client's own choice for
+these titles is a non-user mapping named `native` that the user cannot change.
+The tool's launcher intercepts the path lookups the client makes and otherwise
+starts Valve's `fex-compat-tool` from the FEX depot. It strips `GLIBC_TUNABLES`
+first: the session sets it for proot, and a glibc up to 2.34 calls `__sbrk` while
+parsing those tunables, which fails under FEX's guest `brk` emulation
+(`sbrk() failure while processing tunables`) and kills the game at startup.
+**Games → Components → FEX → x86 Linux titles** chooses between that Valve FEX
+(`BL_FEX_TOOL=valve`, the default) and DroidDeck's own FEX build
+(`BL_FEX_TOOL=droiddeck`, with the selected FEX preset) for the next session. Its
+Gamelog toggle sets `BL_FEX_VERBOSE=1`, which adds FEX logging to the session logs.
+`droiddeck-fex diagnose` probes FEX startup and a guest program with and without
+the tunables, and writes `diagnose.json` beside the session log bundle.
+
 Component selections and the launch table are saved with a recovery record.
 Publishing the launch table commits the selection: if the app stops before its
 settings file is updated, the next component read recovers the matching settings.

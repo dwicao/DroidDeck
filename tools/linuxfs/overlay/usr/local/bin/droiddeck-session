@@ -91,7 +91,23 @@ collect_steam_logs() {
   fi
   local fex_state=$HOME/.local/share/droiddeck-fex
   if [ -d "$fex_state" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-fex" 2>/dev/null; then
-    cp "$fex_state/status.json" "$fex_state/config/Config.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
+    cp "$fex_state/status.json" "$fex_state/config/Config.json" "$fex_state/diagnose.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
+  fi
+  local tool_log
+  for tool_log in /tmp/fex-compat-tool-*.log; do
+    [ -f "$tool_log" ] && cp "$tool_log" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
+  done
+  local games_state=$HOME/.local/share/droiddeck-games
+  if [ -d "$games_state" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-games" 2>/dev/null; then
+    cp "$games_state"/*.json "$BL_DEBUG_DIR/droiddeck-games/" 2>/dev/null
+  fi
+  local manifest
+  if [ -d "$steam_root/steamapps" ] && mkdir -p "$BL_DEBUG_DIR/steamapps" 2>/dev/null; then
+    for manifest in "$steam_root"/steamapps/appmanifest_*.acf; do
+      [ -f "$manifest" ] || continue
+      grep -q '"installdir"[[:space:]]*"DroidDeck-' "$manifest" 2>/dev/null && cp "$manifest" "$BL_DEBUG_DIR/steamapps/" 2>/dev/null
+    done
+    ls -1 "$steam_root/steamapps/downloading" > "$BL_DEBUG_DIR/steamapps/downloading.txt" 2>/dev/null
   fi
   echo "== steam logs copied to $BL_DEBUG_DIR/steam"
 }
@@ -418,6 +434,7 @@ case $mode in
     steam-compatibility "$steam_root" || true
     step "preparing the x86 runtime for FEX"
     /usr/local/bin/droiddeck-fex prepare >/dev/null 2>&1 || true
+    /usr/local/bin/droiddeck-fex diagnose >/dev/null 2>&1 || true
     if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi

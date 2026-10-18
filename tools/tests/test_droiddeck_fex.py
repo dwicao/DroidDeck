@@ -369,10 +369,12 @@ class LaunchTest(FexTestCase):
         x86 = self.write(self.tmp / "x86.so", elf(62))
         env = {"LD_PRELOAD": "%s:%s %s" % (arm, x86, self.tmp / "gone.so"),
                "LD_LIBRARY_PATH": "/steam/steamrtarm64:/usr/lib/aarch64-linux-gnu:/game/lib",
-               "FEX_ROOTFS": "/usr/share/guestos/fex-mesa", "FEX_TSOENABLED": "1"}
+               "FEX_ROOTFS": "/usr/share/guestos/fex-mesa", "FEX_TSOENABLED": "1",
+               "GLIBC_TUNABLES": FEX["TUNEABLES"]}
         guest = FEX["guest_environment"]({"portable": True}, env)
         self.assertEqual((guest["LD_PRELOAD"], guest["LD_LIBRARY_PATH"], guest["FEX_PORTABLE"]), (str(x86), "/game/lib", "1"))
         self.assertNotIn("FEX_ROOTFS", guest)
+        self.assertNotIn("GLIBC_TUNABLES", guest)
         self.assertEqual(guest["FEX_TSOENABLED"], "1")
         self.assertTrue(guest["FEX_APP_CONFIG_LOCATION"].endswith("/config/"))
         self.assertEqual((guest["FEX_SILENTLOG"], guest["FEX_OUTPUTLOG"]), ("0", "stderr"))
@@ -401,6 +403,39 @@ class LaunchTest(FexTestCase):
         FEX["write_config"](fex, "/rt/files")
         thunks = json.loads((self.home / ".local/share/droiddeck-fex/config/ThunksConfig.json").read_text())
         self.assertEqual(thunks, {"ThunksDB": {"GL": 1, "Vulkan": 1}})
+
+    def test_steams_own_fex_tool_runs_without_the_session_tunables(self):
+        tool = self.fex_tool()
+        valve = self.write(tool / "fex-compat-tool", "#!/bin/sh\n", 0o755)
+        with mock.patch.dict(os.environ, {"GLIBC_TUNABLES": FEX["TUNEABLES"], "BL_FEX_VERBOSE": "1"}):
+            with mock.patch("os.execve") as execve:
+                FEX["compat_tool"](["waitforexitandrun", "/rt/_v2-entry-point", "--", "/game/run"])
+        path, argv, env = execve.call_args[0]
+        self.assertEqual((path, argv), (str(valve), [str(valve), "waitforexitandrun", "/rt/_v2-entry-point", "--", "/game/run"]))
+        self.assertNotIn("GLIBC_TUNABLES", env)
+        self.assertEqual((env["STEAM_FEX_LOG"], env["FEX_SILENTLOG"]), ("1", "0"))
+
+    def test_a_missing_steam_fex_tool_says_so(self):
+        status, said = self.quiet(FEX["compat_tool"], ["waitforexitandrun", "/rt/_v2-entry-point"])
+        self.assertEqual(status, 127)
+        self.assertIn("fex-compat-tool", said)
+
+    def test_diagnose_runs_the_guest_both_ways(self):
+        self.fex_tool()
+        platform = self.runtime()
+        self.write(platform / "files/usr/bin/true", elf(62), 0o755)
+        with mock.patch.dict(os.environ, {"GLIBC_TUNABLES": FEX["TUNEABLES"]}):
+            with mock.patch("subprocess.run") as run:
+                run.return_value = mock.Mock(returncode=0, stderr="", stdout="")
+                self.assertEqual(FEX["diagnose"](), 0)
+        result = json.loads(Path(G["DIAGNOSE_FILE"]).read_text())
+        self.assertTrue(result["guest"].endswith("usr/bin/true"))
+        self.assertEqual(result["rootfs"], str(platform / "files"))
+        envs = [call.kwargs["env"] for call in run.call_args_list]
+        self.assertEqual(len(envs), 3)
+        self.assertIn("GLIBC_TUNABLES", envs[0])
+        self.assertIn("GLIBC_TUNABLES", envs[1])
+        self.assertNotIn("GLIBC_TUNABLES", envs[2])
 
     def test_native_programs_run_directly(self):
         program = self.write(self.tmp / "native", elf(183), 0o755)
@@ -526,9 +561,10 @@ class AppInfoTest(unittest.TestCase):
         table = struct.pack("<I", len(strings)) + b"".join(s.encode() + b"\0" for s in strings)
         return struct.pack("<IIq", magic, 1, table_at) + body + table
 
-    def test_linux_only_titles_are_sent_to_fex_and_dual_platform_is_deferred(self):
+    def test_x86_linux_titles_run_through_the_configured_x86_tool(self):
         for magic in (0x07564427, 0x07564428, 0x07564429):
-            with tempfile.TemporaryDirectory() as tmp:
+            with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {}, clear=False):
+                os.environ.pop("BL_FEX_TOOL", None)
                 steam = Path(tmp)
                 (steam / "appcache").mkdir()
                 (steam / "appcache/appinfo.vdf").write_bytes(self.appinfo({
@@ -538,10 +574,17 @@ class AppInfoTest(unittest.TestCase):
                     90: ("linux", "", ""),
                 }, magic))
                 self.COMPAT["APPINFO_CACHE"].clear()
-                targets = self.COMPAT["native_targets"](str(steam), ["10", "20", "30", "40", "41", "50", "70", "80", "90", "1628350", "60"])
+                wanted = ["10", "20", "30", "40", "41", "50", "70", "80", "90", "1628350", "60"]
+                targets = self.COMPAT["native_targets"](str(steam), wanted)
                 self.assertEqual(targets, {
-                    "20": "droiddeck-fex", "30": self.COMPAT["NATIVE_CHOICE"],
-                    "40": None, "41": None, "50": "droiddeck-fex",
+                    "20": self.COMPAT["X86_TOOL"], "30": self.COMPAT["X86_TOOL"],
+                    "40": None, "41": None, "50": self.COMPAT["X86_TOOL"],
+                }, hex(magic))
+                os.environ["BL_FEX_TOOL"] = "droiddeck"
+                targets = self.COMPAT["native_targets"](str(steam), wanted)
+                self.assertEqual(targets, {
+                    "20": self.COMPAT["FEX_TOOL"], "30": self.COMPAT["FEX_TOOL"],
+                    "40": None, "41": None, "50": self.COMPAT["FEX_TOOL"],
                 }, hex(magic))
 
     def test_titles_with_a_valve_pick_are_found_installed_or_not(self):
@@ -615,6 +658,15 @@ class AppInfoTest(unittest.TestCase):
             vdf = (tool / "compatibilitytool.vdf").read_text()
             self.assertIn('"from_oslist" "linux"', vdf)
             self.assertIn('"to_oslist" "linux"', vdf)
+
+            x86 = Path(tmp) / "droiddeck-x86"
+            self.COMPAT["build_x86_tool"](str(x86))
+            self.assertEqual(sorted(os.listdir(x86)), sorted(self.COMPAT["X86_FILES"]))
+            self.assertIn('"commandline" "/droiddeck-x86-tool %verb%"', (x86 / "toolmanifest.vdf").read_text())
+            launcher = (x86 / "droiddeck-x86-tool").read_text()
+            self.assertIn('exec /usr/local/bin/droiddeck-fex compat "$verb" "$@"', launcher)
+            self.assertTrue(os.access(x86 / "droiddeck-x86-tool", os.X_OK))
+            self.assertIn('"droiddeck-x86"', (x86 / "compatibilitytool.vdf").read_text())
 
 
 if __name__ == "__main__":

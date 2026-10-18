@@ -153,6 +153,10 @@ fun ComponentsPage(
     games: List<Library.SteamGame> = emptyList(),
     generalFexPreset: String = "",
     onGeneralFexPreset: (String) -> Unit = {},
+    x86FexTool: String = GameEnvironment.X86_FEX_VALVE,
+    onX86FexTool: (String) -> Unit = {},
+    x86FexDebug: Boolean = false,
+    onX86FexDebug: (Boolean) -> Unit = {},
     requestInitialFocus: Boolean = true,
     gpu: GpuDriversState = GpuDriversState(),
     gpuActions: GpuDriversActions = GpuDriversActions(),
@@ -171,6 +175,7 @@ fun ComponentsPage(
     var scopeMenu by remember { mutableStateOf(false) }
     var selectedGameKey by remember { mutableStateOf<String?>(null) }
     var fexMenu by remember { mutableStateOf(false) }
+    var x86Menu by remember { mutableStateOf(false) }
     var gameProtonMenu by remember { mutableStateOf(false) }
     var gameProtonId by remember { mutableStateOf<String?>(null) }
     var gameProtonChoice by remember { mutableStateOf<ProtonDefault.GameChoice?>(null) }
@@ -676,6 +681,21 @@ fun ComponentsPage(
                                 onDismiss = { fexMenu = false },
                                 onPick = { it?.let(onGeneralFexPreset) },
                             )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    SettingsGroup(stringResource(R.string.fex_x86_title)) {
+                        SettingsRow(stringResource(R.string.fex_x86_tool), stringResource(R.string.fex_x86_tool_hint)) {
+                            X86ToolChip(
+                                tool = x86FexTool,
+                                open = x86Menu,
+                                onToggle = { x86Menu = !x86Menu },
+                                onDismiss = { x86Menu = false },
+                                onPick = onX86FexTool,
+                            )
+                        }
+                        SettingsRow(stringResource(R.string.fex_x86_debug), stringResource(R.string.fex_x86_debug_hint)) {
+                            ToggleSwitch(x86FexDebug, label = stringResource(R.string.fex_x86_debug)) { onX86FexDebug(it) }
                         }
                     }
                 }
@@ -1291,6 +1311,33 @@ internal fun FexPresetChip(
                     focusRequester = if (index == 0 && !allowInheritance) first else null,
                 ) { onPick(option.id); onDismiss() }
             }
+        }
+    }
+}
+
+@Composable
+private fun X86ToolChip(
+    tool: String,
+    open: Boolean,
+    onToggle: () -> Unit,
+    onDismiss: () -> Unit,
+    onPick: (String) -> Unit,
+) {
+    val droiddeck = tool == GameEnvironment.X86_FEX_DROIDDECK
+    Box {
+        ValueChip(
+            stringResource(if (droiddeck) R.string.fex_x86_tool_droiddeck else R.string.fex_x86_tool_valve),
+            open, modifier = Modifier.widthIn(max = 260.dp), onClick = onToggle,
+        )
+        AnchoredMenu(open, onDismiss = onDismiss, title = stringResource(R.string.fex_x86_tool)) { first ->
+            MenuItem(
+                stringResource(R.string.fex_x86_tool_valve), checked = !droiddeck,
+                detail = stringResource(R.string.fex_x86_tool_valve_detail), focusRequester = first,
+            ) { onPick(GameEnvironment.X86_FEX_VALVE); onDismiss() }
+            MenuItem(
+                stringResource(R.string.fex_x86_tool_droiddeck), checked = droiddeck,
+                detail = stringResource(R.string.fex_x86_tool_droiddeck_detail),
+            ) { onPick(GameEnvironment.X86_FEX_DROIDDECK); onDismiss() }
         }
     }
 }

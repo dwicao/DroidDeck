@@ -83,4 +83,7 @@ object GameEnvironment {
     }
 
     const val CUSTOM_FEX_PRESET = "__custom__"
+
+    const val X86_FEX_VALVE = "valve"
+    const val X86_FEX_DROIDDECK = "droiddeck"
 }

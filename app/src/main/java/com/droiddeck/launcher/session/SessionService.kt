@@ -561,6 +561,8 @@ class SessionService : Service() {
         if (SessionState.mode == MODE_STEAM) guest.add("BL_MANGOAPP=" + (if (SessionPrefs.mangoapp(this)) "1" else "0"))
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
+            guest.add("BL_FEX_TOOL=" + SessionPrefs.x86FexTool(this))
+            if (SessionPrefs.x86FexDebug(this)) guest.add("BL_FEX_VERBOSE=1")
         }
         if (SessionPrefs.noXalia(this)) guest.add("PROTON_USE_XALIA=0")
         guest.add("BL_SYNC=" + (if (SessionPrefs.fastSync(this)) "1" else "0"))

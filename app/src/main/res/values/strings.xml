@@ -91,6 +91,15 @@
     <string name="sync_backend_wineserver">wineserver</string>
     <string name="fex_preset_title">FEX preset</string>
     <string name="fex_next_launch">Applies on the next game launch.</string>
+    <string name="fex_x86_title">x86 Linux titles</string>
+    <string name="fex_x86_tool">Runtime</string>
+    <string name="fex_x86_tool_hint">Which FEX starts Linux titles built for Intel or AMD. Takes effect on the next session.</string>
+    <string name="fex_x86_tool_valve">Steam FEX</string>
+    <string name="fex_x86_tool_valve_detail">Valve\'s own FEX, started without the session\'s memory tuning.</string>
+    <string name="fex_x86_tool_droiddeck">DroidDeck FEX</string>
+    <string name="fex_x86_tool_droiddeck_detail">DroidDeck\'s FEX build, with the preset above.</string>
+    <string name="fex_x86_debug">FEX logging</string>
+    <string name="fex_x86_debug_hint">Extra FEX output in the session logs, for reporting problems.</string>
     <string name="game_settings_title">Games</string>
     <string name="fex_default_label">FEX defaults</string>
     <string name="fex_default_detail">Uses FEX defaults.</string>

@@ -499,6 +499,22 @@ object SessionPrefs {
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
+    const val X86_FEX_VALVE = GameEnvironment.X86_FEX_VALVE
+    const val X86_FEX_DROIDDECK = GameEnvironment.X86_FEX_DROIDDECK
+
+    fun x86FexTool(context: Context): String =
+        if (prefs(context).getString("x86FexTool", X86_FEX_VALVE) == X86_FEX_DROIDDECK) X86_FEX_DROIDDECK else X86_FEX_VALVE
+
+    fun setX86FexTool(context: Context, id: String) {
+        prefs(context).edit().putString("x86FexTool", if (id == X86_FEX_DROIDDECK) X86_FEX_DROIDDECK else X86_FEX_VALVE).apply()
+    }
+
+    fun x86FexDebug(context: Context): Boolean = prefs(context).getBoolean("x86FexDebug", false)
+
+    fun setX86FexDebug(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("x86FexDebug", on).apply()
+    }
+
     fun bootMovie(context: Context): String =
         prefs(context).getString("bootMovie", BootMovie.DROIDDECK_30) ?: BootMovie.DROIDDECK_30
     fun setBootMovie(context: Context, id: String) { prefs(context).edit().putString("bootMovie", id).apply() }

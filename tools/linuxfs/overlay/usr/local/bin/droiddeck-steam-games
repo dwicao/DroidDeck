@@ -57,7 +57,7 @@ def source_stamp(game):
         for parent in sorted({Path(game["folder"]), exe.parent}):
             hint = parent / "steam_appid.txt"
             hints.append(hint.read_text().strip() if hint.is_file() else "")
-        return [game["name"], str(exe), stat.st_size, stat.st_mtime_ns, hints]
+        return [game["name"], str(exe), stat.st_size, stat.st_mtime_ns, hints, game.get("steam_id")]
     except (OSError, ValueError):
         return None
 
@@ -80,6 +80,16 @@ def manifest_ids(steamapps, name):
     return matches
 
 
+def search_terms(*names):
+    """Store search is picky about punctuation (" - " matches nothing for some titles) and a
+    repack folder often spells the title differently from the client, so try the spellings
+    that normalize to the same key."""
+    terms = []
+    for name in names:
+        terms += [name, re.sub(r"[^\w\s]", " ", name), name.replace(" - ", ": ")]
+    return list(dict.fromkeys(re.sub(r"\s+", " ", term).strip() for term in terms if term.strip()))
+
+
 def identify(game):
     folder = Path(game["folder"])
     # The manifest Steam keeps beside the game, in a library that was copied whole or unpacked from
@@ -98,18 +108,25 @@ def identify(game):
             pass
     if ids:
         return next(iter(ids)) if len(ids) == 1 else None
-    url = "https://store.steampowered.com/api/storesearch/?l=english&cc=US&term=" + urllib.parse.quote(game["name"])
-    try:
-        with urllib.request.urlopen(url, timeout=5) as response:
-            items = json.loads(response.read(1024 * 1024)).get("items", [])
-        for key in (title_key, edition_key):
-            ids = {int(item["id"]) for item in items
-                   if key(item.get("name", "")) == key(game["name"]) and key(game["name"])}
-            if ids:
-                return next(iter(ids)) if len(ids) == 1 else None
-        return None
-    except (OSError, ValueError, KeyError):
-        return None
+    # What the app itself read out of the folder (steam_emu.ini, an app id file it understands):
+    # the ownership probe still decides whether the license is there.
+    hint = game.get("steam_id")
+    if isinstance(hint, int) and 0 < hint < 0x80000000:
+        return hint
+    keys = (title_key, edition_key)
+    want = {key(value) for value in (game["name"], folder.name) for key in keys} - {""}
+    for term in search_terms(game["name"], folder.name):
+        url = "https://store.steampowered.com/api/storesearch/?l=english&cc=US&term=" + urllib.parse.quote(term)
+        try:
+            with urllib.request.urlopen(url, timeout=5) as response:
+                items = json.loads(response.read(1024 * 1024)).get("items", [])
+        except (OSError, ValueError, KeyError):
+            return None
+        ids = {int(item["id"]) for item in items
+               if item.get("name") and want.intersection(key(item["name"]) for key in keys)}
+        if ids:
+            return next(iter(ids)) if len(ids) == 1 else None
+    return None
 
 
 def method(obj, slot, result, *args):
@@ -189,6 +206,7 @@ def watch(steam_root, listing):
     if os.environ.get("BL_STEAM_OFFLINE") == "1" or not games:
         return
     candidates, sources = {}, {}
+    names = {game["folder"]: game.get("name", "") for game in games}
     next_lookup = 0
     last_status = None
     probed, next_probe, failures = None, 0, 0
@@ -231,7 +249,15 @@ def watch(steam_root, listing):
                     snapshot["sources"] = sources
                     save_json(Path(steam_root) / "userdata" / snapshot["account"] / "config" / STATE, snapshot)
                     pending = unimported(steam_root, snapshot, candidates)
+                    unowned = ["%s (%s)" % (names.get(folder, folder), appid)
+                               for folder, appid in sorted(candidates.items())
+                               if snapshot["owned"].get(str(appid)) is not True]
                     status = "matched %d/%d games; %d owned" % (len(candidates), len(games), sum(snapshot["owned"].values()))
+                    if unowned:
+                        status += "; not owned: " + ", ".join(unowned)
+                    record(account=snapshot["account"], owned=snapshot["owned"], candidates=candidates,
+                           sources=sources, unowned=unowned, pending=pending,
+                           downloading=downloading(steam_root))
             except (OSError, ValueError, KeyError, StopIteration, subprocess.TimeoutExpired) as error:
                 status = "ownership check unavailable: " + str(error)
                 failures += 1
@@ -251,15 +277,41 @@ def watch(steam_root, listing):
         time.sleep(30)
 
 
-def installed_build(folder, appid, installdir):
+def block(text, key):
+    """A brace-counted VDF section: its body and the span the whole section occupies."""
+    match = re.search(r'"%s"\s*\{' % re.escape(key), text)
+    if not match:
+        return None, None
+    depth = 1
+    for index in range(match.end(), len(text)):
+        if text[index] == "{":
+            depth += 1
+        elif text[index] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[match.end():index], (match.start(), index + 1)
+    return None, None
+
+
+def depot_lines(depots, indent, manifest_indent):
+    return "".join('%s"%s"\n%s{\n%s"manifest" "%s"\n%s}\n'
+                   % (indent, depot, indent, manifest_indent, gid, indent) for depot, gid in depots)
+
+
+def installed_build(folder, appid, installdir, steam_root=None):
     """The build another Steam client recorded for these files, so Steam updates from it
     instead of verifying every file."""
     # A library copied whole from another machine keeps Steam's own manifest beside the game;
     # that record is as good as WinNative's copy of it and is what makes Steam keep the files.
-    siblings = [folder.parent.parent / f"appmanifest_{appid}.acf", folder.parent / WINNATIVE / f"appmanifest_{appid}.acf"]
-    for manifest in siblings:
+    # WinNative and GameNative write .download_complete when their own download finished, but a
+    # folder filled by DepotDownloader alone only ever has depot.config, so the depot records are
+    # what the check is about; a partial download lists fewer depots, never more.
+    libraries_ = [folder.parent.parent, folder.parent / WINNATIVE]
+    if steam_root is not None:
+        libraries_ += [root / "steamapps" for root in libraries(steam_root)]
+    for library in dict.fromkeys(libraries_):
         try:
-            text = manifest.read_text()
+            text = (library / f"appmanifest_{appid}.acf").read_text()
         except OSError:
             continue
         install = re.search(r'("installdir"\s*")([^"\\]*)(")', text, re.I)
@@ -267,8 +319,6 @@ def installed_build(folder, appid, installdir):
         if (install and install[2] == folder.name and flags and flags[1] == "4"
                 and re.search(rf'"appid"\s*"{appid}"', text) and '"InstalledDepots"' in text):
             return text[:install.start(2)] + installdir + text[install.end(2):]
-    if not (folder / ".download_complete").is_file():
-        return None
     try:
         ids = json.loads((folder / ".DepotDownloader/depot.config").read_text())["installedManifestIDs"]
         depots = sorted((int(depot), int(gid)) for depot, gid in ids.items())
@@ -276,7 +326,74 @@ def installed_build(folder, appid, installdir):
         return None
     if not depots or not all(0 < depot < 0x80000000 and 0 < gid < 0x7FFFFFFFFFFFFFFF for depot, gid in depots):
         return None
-    return "".join(f'        "{depot}"\n        {{\n            "manifest" "{gid}"\n        }}\n' for depot, gid in depots)
+    return depot_lines(depots, "        ", "            ")
+
+
+def line_span(text, span):
+    """The whole lines a section occupies, so removing it leaves no blank line behind."""
+    return text.rfind("\n", 0, span[0]) + 1, span[1] + 1 if text[span[1]:span[1] + 1] == "\n" else span[1]
+
+
+def adopt_staged(text):
+    """Steam's own staging record for an update it already downloaded: the copy from
+    steamapps/downloading into the imported folder is what never finishes, so the staged build is
+    what the files already are. Moving it into InstalledDepots with the counters reset is the same
+    edit Steam makes when a copy succeeds."""
+    stage, stage_span = block(text, "StagedDepots")
+    if stage_span is None:
+        return None
+    entries = []
+    for depot, inner in re.findall(r'"(\d+)"\s*\{([^{}]*)\}', stage, re.S):
+        gid = re.search(r'"manifest"\s*"(\d+)"', inner)
+        if not gid:
+            continue
+        size = re.search(r'"size"\s*"(\d+)"', inner)
+        entry = '\t\t"%s"\n\t\t{\n\t\t\t"manifest"\t\t"%s"\n' % (depot, gid[1])
+        if size:
+            entry += '\t\t\t"size"\t\t"%s"\n' % size[1]
+        entries.append(entry + "\t\t}\n")
+    if not entries:
+        return None
+    installed, installed_span = block(text, "InstalledDepots")
+    section = '\t"InstalledDepots"\n\t{\n' + "".join(entries) + "\t}\n"
+    start, end = line_span(text, stage_span)
+    edits = [(start, end, section)]
+    if installed_span is not None:
+        edits.append(line_span(text, installed_span) + ("",))
+    for beginning, finish, replacement in sorted(edits, reverse=True):
+        text = text[:beginning] + replacement + text[finish:]
+    counters = {"StateFlags": "4", "UpdateResult": "0", "StagingSize": "0"}
+    for key, value in counters.items():
+        text = re.sub(r'(\n[ \t]*"%s"[ \t]*")[^"]*(")' % key, r"\g<1>%s\g<2>" % value, text, count=1)
+    for key, source in [("buildid", "TargetBuildID"), ("BytesStaged", "BytesToStage"),
+                        ("BytesDownloaded", "BytesToDownload")]:
+        value = re.search(r'\n[ \t]*"%s"[ \t]*"([^"]*)"' % source, text)
+        if value:
+            text = re.sub(r'(\n[ \t]*"%s"[ \t]*")[^"]*(")' % key, r"\g<1>%s\g<2>" % value[1], text, count=1)
+    return text
+
+
+def record(**fields):
+    """What the importer decided, beside the snapshot Steam keeps, for the session's log bundle."""
+    if not os.environ.get("BL_DEBUG_DIR"):
+        return
+    path = Path(os.environ.get("HOME", "/root"), ".local/share/droiddeck-games/status.json")
+    snapshot = read_json(path, {})
+    if not isinstance(snapshot, dict):
+        snapshot = {}
+    snapshot.update(fields)
+    snapshot["checked"] = time.time()
+    try:
+        save_json(path, snapshot)
+    except OSError:
+        pass
+
+
+def downloading(steam_root):
+    try:
+        return sorted(entry.name for entry in (Path(steam_root) / "steamapps/downloading").iterdir())
+    except OSError:
+        return []
 
 
 def update_not_started(text, steamapps, appid, installdir):
@@ -323,7 +440,24 @@ def park(steamapps):
             print(f"droiddeck-steam-games: {appid} is not here this session; its install is set aside until it is")
 
 
-def seed_install(steam_root, game, appid):
+def manifest_body(minimal, build):
+    if build is None:
+        return minimal
+    if build.lstrip().startswith('"AppState"'):
+        return build
+    return minimal[:-2] + '    "InstalledDepots"\n    {\n' + build + '    }\n}\n'
+
+
+def update_adoptable(text, name):
+    """A manifest of ours Steam has taken over for an update it already staged: its StagedDepots
+    record names the build it downloaded, and the imported files are what is on disk."""
+    fields = dict(re.findall(r'^\s*"(\w+)"\s*"([^"]*)"', text, re.M))
+    stage, _ = block(text, "StagedDepots")
+    return (fields.get("installdir") == name and fields.get("buildid", "0") == "0"
+            and bool(stage and re.search(r'"manifest"\s*"\d+"', stage)))
+
+
+def seed_install(steam_root, game, appid, report=None):
     steamapps = Path(steam_root) / "steamapps"
     common = steamapps / "common"
     name = f"DroidDeck-{appid}"
@@ -333,13 +467,7 @@ def seed_install(steam_root, game, appid):
     minimal = ('"AppState"\n{\n' + f'    "appid" "{appid}"\n    "Universe" "1"\n    "name" "{title}"\n'
                + f'    "StateFlags" "4"\n    "installdir" "{name}"\n' + '}\n')
     legacy = minimal.replace('    "Universe" "1"\n', '')
-    build = installed_build(source, appid, name)
-    if build is None:
-        content = minimal
-    elif build.lstrip().startswith('"AppState"'):
-        content = build
-    else:
-        content = minimal[:-2] + '    "InstalledDepots"\n    {\n' + build + '    }\n}\n'
+    build = installed_build(source, appid, name, steam_root)
     manifest = steamapps / f"appmanifest_{appid}.acf"
     if target.is_symlink() and os.readlink(target) != str(source) and os.readlink(target) == legacy_path(source):
         relink = target.with_name(name + ".droiddeck")
@@ -348,16 +476,30 @@ def seed_install(steam_root, game, appid):
         os.replace(relink, target)
     for root in libraries(steam_root):
         existing = root / "steamapps" / manifest.name
-        if existing.is_file():
-            if (existing == manifest and source.is_dir() and target.is_symlink()
-                    and os.readlink(target) == str(source)
-                    and existing.read_text() != content
-                    and (existing.read_text() in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"'))
-                         or (build is not None and update_not_started(existing.read_text(), steamapps, appid, name)))):
-                temp = manifest.with_suffix(".droiddeck")
-                temp.write_text(content)
-                os.replace(temp, manifest)
+        if not existing.is_file():
+            continue
+        if not (existing == manifest and source.is_dir() and target.is_symlink()
+                and os.readlink(target) == str(source)):
             return True
+        text = existing.read_text(errors="replace")
+        if text in (minimal, legacy, legacy.replace('"StateFlags" "4"', '"StateFlags" "2"')):
+            content = manifest_body(minimal, build)
+        elif build is not None and update_not_started(text, steamapps, appid, name):
+            content = manifest_body(minimal, build)
+        elif update_adoptable(text, name):
+            content = adopt_staged(text)
+            if content is None:
+                return True
+        else:
+            return True
+        if report is not None:
+            report[str(appid)] = {"folder": str(source), "kept": text == content,
+                                  "manifest": content[:4000]}
+        if text != content:
+            temp = manifest.with_suffix(".droiddeck")
+            temp.write_text(content)
+            os.replace(temp, manifest)
+        return True
     if not source.is_dir():
         return False
     common.mkdir(parents=True, exist_ok=True)
@@ -366,6 +508,9 @@ def seed_install(steam_root, game, appid):
             return False
     else:
         target.symlink_to(source, target_is_directory=True)
+    content = manifest_body(minimal, build)
+    if report is not None:
+        report[str(appid)] = {"folder": str(source), "created": True, "manifest": content[:4000]}
     try:
         with manifest.open("x") as output:
             output.write(content)
@@ -400,6 +545,7 @@ def route(steam_root, acct, games):
     if not all(isinstance(value, dict) for value in (owned, candidates, sources)):
         owned, candidates, sources = {}, {}, {}
     shortcuts, routes = [], {}
+    seeds = {}
     steamapps = Path(steam_root) / "steamapps"
     try:
         unpark(steamapps)
@@ -422,7 +568,7 @@ def route(steam_root, acct, games):
                      and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:]))
         if confirmed:
             try:
-                if seed_install(steam_root, game, appid):
+                if seed_install(steam_root, game, appid, seeds):
                     routes[str(game["appid"])] = appid
                     continue
             except OSError as error:
@@ -433,6 +579,7 @@ def route(steam_root, acct, games):
     except OSError as error:
         print(f"droiddeck-steam-games: missing installs not set aside ({error})")
     save_json(Path(acct) / "config/.droiddeck-routes.json", routes)
+    record(seeds=seeds, downloading=downloading(steam_root))
     return shortcuts, routes
 
 
