@@ -39,11 +39,11 @@ on the SM-F946B, 2026-10-19, twice 15 minutes apart:
 | | first reading | later |
 | --- | --- | --- |
 | little (0–2) top | 2016 MHz | 2016 MHz |
-| little `scaling_max_freq` | **1555 MHz** | 2016000 |
+| little `scaling_max_freq` | **1555 MHz** | 2016 MHz (uncapped again) |
 | gold (3–6) top | 2803 MHz | 2803 MHz |
-| gold `scaling_max_freq` | **2054 MHz** | 2803200 |
+| gold `scaling_max_freq` | **2054 MHz** | 2803 MHz (uncapped again) |
 | prime (7) top | 3360 MHz | 3360 MHz |
-| prime `scaling_max_freq` | **2342 MHz** | 2956800 |
+| prime `scaling_max_freq` | **2342 MHz** | 2957 MHz (still short of its top) |
 | every cluster `scaling_min_freq` | 1228–1286 MHz | 1228–1286 MHz |
 
 The same device, same idle load, moved from `1900/2457/2726` to `1555/2054/2342` and back within
@@ -52,9 +52,9 @@ seconds. So the cap is real, it is dynamic, and it is visible in exactly one pla
 a low `scaling_cur_freq` is the governor choosing, or a core sitting on the platform's floor.
 
 KGSL says the same thing about the GPU: `max_clock_mhz=719`, `min_clock_mhz=475`,
-`clock_mhz=475`, `thermal_pwrlevel=0`, `throttling=0`, `temp=44200`. The GPU sits at the bottom of
-its own range while the session runs and drops to ~348 MHz (`min_clock_mhz` itself moves) once the
-device is hot, which is the same shape as the 30 → 14 fps drop.
+`clock_mhz=475`, `thermal_pwrlevel=0`, `throttling=0`, `temp=44200`. The GPU's clock sits on its own
+floor of 475 MHz, and once the device is hot that floor itself moves down to ~348 MHz — the same
+shape as the 30 → 14 fps drop.
 
 ## What 0.4.8 changed
 
@@ -92,6 +92,19 @@ ThrottleWatch: game 8 fps | thermal none | cpu 1228/2016 MHz (cap 1900) ...
 That line, with the timestamp of the log line around it, is the difference between "it got slower"
 and "the platform took 750 MHz off the gold cluster at 12:31".
 
+### The paced numbers reach `device.txt` too
+
+`device.txt` is written when the session folder opens, which is before the display mode has settled,
+so it cannot carry the pacing from `build()`. `DeviceReport.appendPacing` appends one line once the
+plan is known instead:
+
+```
+Session pacing         guest 30 fps · layer 60.00 Hz · display 60.00 Hz · LSFG 2×
+```
+
+The point is that a report pasted into an issue carries the numbers the session was actually paced
+at, not the settings it was meant to use.
+
 ### The guest's rate and the panel's rate are separate numbers
 
 `nativeSetFpsLimit` (the compositor's release pace) and `nativeSetLayerFrameRate` (the rate voted to
@@ -109,10 +122,13 @@ SurfaceFlinger sampling every other generated frame.
 | LSFG 2x, armed | none | panel / 2 | panel |
 | LSFG 2x, armed | 60 | 60 | panel |
 | adaptive target | any | the target's own base | panel |
+| LSFG 2x, armed (desktop session) | none | panel rate | panel |
 
 The derived base only applies when the engine can actually arm (`FrameGen.ready`), and a session
 whose engine failed to arm releases the cap rather than leaving the guest at half rate for frames
-nothing fills. The user's own limit is never overridden.
+nothing fills. The user's own limit is never overridden. A desktop session is left at the panel rate
+on purpose: a cursor wants the least delay, not the most frames, and the desktop is the one place in
+a session where the user is not looking at a game's frame rate.
 
 ### The display rate must be a mode the display has
 
@@ -149,7 +165,7 @@ A saved `gameCpus` value still wins, so anyone who chose their own list keeps it
 
 - The frame rate the guest is asked for: a lower base rate is less heat, and with a fixed-multiplier
   generator it is also the same picture.
-- `gpuClockPin` (Performance settings, off by default) asks KGSL to stop managing its own power
-  level, which holds the GPU at its top clock for the length of the session. `perf.csv` now shows
-  whether it holds, and what it costs in `gpu_temp_c`.
+- `gpuClockPin` ("Hold the GPU at its top clock" in Performance settings, off by default) asks KGSL to
+  stop managing its own power level, which holds the GPU at its top clock for the length of the
+  session. `perf.csv` now shows whether it holds, and what it costs in `gpu_temp_c`.
 - The core lists, which decide which clusters the guest's threads are allowed to use at all.
