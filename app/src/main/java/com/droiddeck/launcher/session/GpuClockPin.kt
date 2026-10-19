@@ -24,6 +24,10 @@ import java.io.File
  * is 295 MHz, "held at the top" means held at 295 MHz, and a held clock that still fell says the
  * platform moved the ceiling rather than that the pin did not take. `perf.csv` writes the pin state
  * next to the clock and the ceiling so a report can tell the two apart.
+ *
+ * `min_pwrlevel` and `max_pwrlevel` are left alone: on this driver they are the same level index
+ * under different names (0 is the top, 4 is the 475 MHz floor), and the level the thermal engine
+ * writes is the one that decides, so writing either would be a claim the pin cannot keep.
  */
 object GpuClockPin {
     private const val TAG = "GpuClockPin"

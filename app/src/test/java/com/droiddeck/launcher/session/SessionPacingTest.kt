@@ -66,9 +66,16 @@ class SessionPacingTest {
 
     @Test fun aPlanThatLinesUpWithThePanelSaysNothing() {
         assertNull(note(SessionPacing.Plan(30, 60f), lsfg2, 60f))
-        assertNull(note(SessionPacing.Plan(60, 120f), FrameGen.Mode(FrameGen.ENGINE_LSFG, 4), 120f))
+        assertNull(note(SessionPacing.Plan(60, 120f), lsfg2, 120f))
         // One frame a second short of the panel is a repeated frame, not a line in the report.
         assertNull(note(SessionPacing.Plan(37, 75f), lsfg2, 75f))
+    }
+
+    @Test fun aChosenLimitThatOvershootsThePanelIsReportedAndNotChanged() {
+        assertEquals(
+            "guest 60 fps × 4 = 240 Hz above the 120.00 Hz panel, frames are held back",
+            note(SessionPacing.Plan(60, 120f), FrameGen.Mode(FrameGen.ENGINE_LSFG, 4), 120f),
+        )
     }
 
     @Test fun aPlanAboveThePanelSaysFramesAreHeldBack() {
