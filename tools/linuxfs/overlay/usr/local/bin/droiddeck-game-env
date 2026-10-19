@@ -647,8 +647,8 @@ def content_report(env, app_id, path, budget=MEASURE_SECONDS):
                          % (" of build %s" % build.group(1) if build else "", expected_bytes, total, files,
                             " (counting stopped at %d files)" % files if capped else ""))
             if not capped and expected_bytes - total > SHORT_BYTES and total < expected_bytes * SHORT_TOLERANCE:
-                lines.append("content: %s of it is not there, and Steam will not ask for it: the manifest "
-                             "is the copied install's own, and it records that build as installed"
+                lines.append("content: %s of it is not there, and Steam will not ask for it: the manifest it "
+                             "reads records that build as installed, so the client has no reason to fetch it"
                              % sizeof(expected_bytes - total))
                 short = "%s of its %s install is not there" % (sizeof(expected_bytes - total), sizeof(expected_bytes))
         found = bundles_missing(root)
