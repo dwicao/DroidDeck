@@ -58,6 +58,7 @@ object ThrottleWatch {
     private var lastGpuTop: Long? = null
     private var lastThermal = Int.MIN_VALUE
     private var lastOnline: String? = null
+    private var wasBelowCeiling = false
     private var ddrNode: String? = null
 
     /** A session's start. */
@@ -188,7 +189,7 @@ object ThrottleWatch {
         }
 
         val held = GpuClockPin.pinned
-        val topMoved = logCapChanges(clusters, limits, gpuFloor, gpuTop, status, onlineNow, held)
+        val topMoved = logCapChanges(clusters, limits, gpuFloor, gpuTop, status, onlineNow, held, pwrLevel, gpuTemp)
         lastLimits = limits
         lastGpuFloor = gpuFloor
         lastGpuTop = gpuTop
@@ -197,7 +198,21 @@ object ThrottleWatch {
 
         // A held clock is repeated when the ceiling moves, and now and then anyway: whether it
         // still takes shows up in the next row's clock against that ceiling.
-        if (held && (topMoved || ticks % REASSERT_EVERY == 0)) GpuClockPin.reassert()
+        //
+        // Below the ceiling is the other case: the platform clamped the level, then raised the
+        // ceiling again, and a repeated hold no longer changes anything the driver acts on. The
+        // switch is cycled instead so the driver takes the top the platform now allows.
+        val belowCeiling = gpuMhz != null && gpuTop != null && gpuMhz < gpuTop - 5
+        val due = ticks % REASSERT_EVERY == 0
+        if (held && (topMoved || due)) {
+            // Cycling enables the governor for the width of two ioctls, so a gap that will not close
+            // is retried with the re-asserts rather than every sample.
+            if (belowCeiling && !wasBelowCeiling) {
+                Log.i(TAG, "pin: clock $gpuMhz of $gpuTop MHz, cycling the switch for the top")
+            }
+            GpuClockPin.reassert(force = belowCeiling)
+        }
+        wasBelowCeiling = belowCeiling
 
         ticks++
         if (ticks % LOG_EVERY == 0) {
@@ -224,7 +239,13 @@ object ThrottleWatch {
             append(String.format(Locale.US, "  cpu %d/%d", nowMhz[top] ?: 0, clusters[top].topMhz))
             val limit = limits.getOrNull(top)
             if (limit != null && limit < clusters[top].topMhz - 1) append("(cap $limit)")
-            if (gpuMhz != null) append(String.format(Locale.US, "  gpu %d MHz", gpuMhz))
+            if (gpuMhz != null) {
+                append(String.format(Locale.US, "  gpu %d", gpuMhz))
+                // The ceiling is the platform's; showing it next to the clock is what keeps "475"
+                // from reading as the pin holding the wrong level.
+                if (gpuTop != null && gpuTop > gpuMhz + 5) append("/").append(gpuTop)
+                append(" MHz")
+            }
         }
     }
 
@@ -237,6 +258,8 @@ object ThrottleWatch {
         status: Int,
         onlineNow: String,
         held: Boolean,
+        pwrLevel: Long?,
+        gpuTempC: Double?,
     ): Boolean {
         val changed = ArrayList<String>(4)
         if (lastLimits.size == limits.size) {
@@ -252,9 +275,14 @@ object ThrottleWatch {
         val topMoved = wasTop != null && gpuTop != null && wasTop != gpuTop
         if (topMoved) {
             // The ceiling is the platform's, so a held clock follows it down rather than past it:
-            // saying so here keeps the two cases apart when the frame rate falls with it.
+            // saying so here keeps the two cases apart when the frame rate falls with it. The
+            // level that set it, and the temperature at the time, are what a report is read for.
+            val why = ArrayList<String>(3)
+            pwrLevel?.let { why += "level $it" }
+            if (held) why += "held"
+            gpuTempC?.let { why += String.format(Locale.US, "gpu %.1f C", it) }
             changed += "gpu top $wasTop→$gpuTop MHz" +
-                if (held) " (held, the platform lowered the ceiling)" else ""
+                (if (why.isEmpty()) "" else " (" + why.joinToString(", ") + ")")
         }
         if (lastThermal != Int.MIN_VALUE && lastThermal != status) changed += thermalName(status)
         val wasOnline = lastOnline

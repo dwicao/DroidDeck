@@ -1340,6 +1340,15 @@ class SessionService : Service() {
         val stoppedSession = SessionState.sessionId
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
+        // The report is written before the session's surface exists, so the pacing block it gains
+        // during the session is not guaranteed to have landed; this path always runs, and the GPU
+        // lines it reads now are the ones the session ended at.
+        SessionState.logDirectory?.let {
+            DeviceReport.appendPacing(
+                this, File(it, "device.txt"), SessionState.sessionDisplay,
+                SessionState.refreshHz, SessionState.fpsLimit, SessionState.outputHz, SessionState.pacingNote,
+            )
+        }
         GpuClockPin.stop(this)
         GameThreadHints.stop()
         SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))

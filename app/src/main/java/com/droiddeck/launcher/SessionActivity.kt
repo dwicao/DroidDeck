@@ -1478,21 +1478,29 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      */
     private fun notePacing(hz: Float, plan: SessionPacing.Plan) {
         SessionState.refreshHz = hz
+        SessionState.outputHz = plan.outputHz
         val note = SessionPacing.note(plan, FrameGen.mode(this), hz)
+        SessionState.pacingNote = note
+        val displayText = com.droiddeck.launcher.core.DeviceReport.sessionDisplayLine(
+            if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay,
+        )
+        SessionState.sessionDisplay = displayText
         val line = buildString {
             append("pace: guest ")
             append(if (plan.guestFps > 0) "${plan.guestFps} fps" else "follows the panel")
             append(", layer ").append(plan.outputHz).append(" Hz, display ").append(hz).append(" Hz")
             if (note != null) append(" — ").append(note)
         }
-        if (line == pacedLine) return
-        pacedLine = line
-        Log.i(TAG, line)
+        if (line != pacedLine) {
+            pacedLine = line
+            Log.i(TAG, line)
+        }
+        // Not only when the numbers change: the first note can be taken before the session folder
+        // exists, and the report is then written over it. Writing on every note is what makes the
+        // block land once the folder is there, and the file keeps only the last one.
         SessionState.logDirectory?.let {
             com.droiddeck.launcher.core.DeviceReport.appendPacing(
-                this, File(it, "device.txt"),
-                if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay,
-                hz, plan.guestFps, plan.outputHz, note,
+                this, File(it, "device.txt"), displayText, hz, plan.guestFps, plan.outputHz, note,
             )
         }
     }

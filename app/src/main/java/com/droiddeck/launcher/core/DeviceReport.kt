@@ -41,35 +41,83 @@ object DeviceReport {
     /**
      * Lines added to a written report once the session's surface is up, which is after the report is
      * first written: what the guest is asked to draw, what the layer is sampled at, which display it
-     * is on, and whether the GPU's clock is held. The pacing numbers are only known here (the
-     * display's mode settles after the first frame), and the block is written again when they change.
+     * is on, where the GPU's clock sits beside the ceiling the platform allows, and whether the pin
+     * is holding it. The pacing numbers are only known here (the display's mode settles after the
+     * first frame), and the block is written again when they change and once more when the session
+     * ends, so the numbers are the ones the session actually ran at.
      */
     fun appendPacing(
         context: Context,
         target: File,
-        display: Display?,
+        displayText: String?,
         displayHz: Float,
         guestFps: Int,
         outputHz: Float,
         note: String? = null,
     ) {
         val guest = if (guestFps > 0) "$guestFps fps" else "follows the panel"
-        val text = buildString {
-            line(this, "Session pacing", "guest $guest · layer ${hz(outputHz)} · display ${hz(displayHz)}" +
+        val layer = if (outputHz > 1f) hz(outputHz) else "unknown"
+        val block = buildString {
+            append(BLOCK_MARK).append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())).append(" --\n")
+            line(this, "Session pacing", "guest $guest · layer $layer · display ${hz(displayHz)}" +
                 " · ${com.droiddeck.launcher.gpu.FrameGen.label(context)}")
-            sessionDisplayLine(display)?.let { line(this, "Session display", it) }
-            line(
-                this, "GPU clock pin",
-                if (GpuClockPin.pinned) "held at its top (${GpuClockPin.lever})" else "not held",
-            )
+            displayText?.let { line(this, "Session display", it) }
+            gpuClockText(kgslNumber("clock_mhz"), kgslTop(), kgslNumber("max_clock_mhz"), kgslNumber("thermal_pwrlevel"))
+                ?.let { line(this, "GPU clock", it) }
+            line(this, "GPU clock pin", pinText())
             if (note != null) line(this, "Pacing note", note)
         }
+        writeBlock(target, block)
+    }
+
+    /**
+     * Replaces the block this wrote before instead of adding another: a session notes its pacing
+     * several times, and a report that repeated the block for each would bury the rest. Only the
+     * last block is ours, so the file is cut at its marker.
+     */
+    private fun writeBlock(target: File, block: String) {
         try {
-            target.appendText(text)
+            val old = if (target.isFile) target.readText() else ""
+            val cut = old.lastIndexOf(BLOCK_MARK)
+            val head = (if (cut >= 0) old.substring(0, cut) else old).trimEnd()
+            target.writeText((if (head.isEmpty()) "" else head + "\n\n") + block)
         } catch (e: Exception) {
             Log.w(TAG, "could not append pacing to $target", e)
         }
     }
+
+    private fun pinText(): String {
+        if (!GpuClockPin.pinned) return "not held"
+        val refused = GpuClockPin.levelRefused
+        return "held at its top (${GpuClockPin.lever})" +
+            (if (refused != null) "; the level node refused: $refused" else "")
+    }
+
+    /**
+     * The GPU's clock beside the ceiling the platform allows: the number a report is read for when
+     * a held clock looks low. `thermal_pwrlevel` is the index into `freq_table_mhz` that the
+     * platform's thermal engine writes; level 0 is the top, and anything above it caps
+     * `max_clock_mhz` below the top the silicon can reach.
+     */
+    internal fun gpuClockText(clockMhz: Long?, topMhz: Long?, ceilingMhz: Long?, level: Long?): String? {
+        if (clockMhz == null || ceilingMhz == null) return null
+        val of = if (topMhz != null && topMhz > 0 && clockMhz != topMhz) "$clockMhz of $topMhz MHz" else "$clockMhz MHz"
+        return when {
+            level != null && level > 0 -> "$of (platform level $level caps it at $ceilingMhz MHz)"
+            clockMhz < ceilingMhz - 5 -> "$of (below the ceiling $ceilingMhz MHz)"
+            else -> "$of (top level)"
+        }
+    }
+
+    private const val KGSL_DIR = "/sys/class/kgsl/kgsl-3d0"
+    private const val BLOCK_MARK = "-- session pacing "
+
+    private fun kgslNumber(name: String): Long? =
+        runCatching { File(KGSL_DIR, name).readText().trim().toLong() }.getOrNull()
+
+    private fun kgslTop(): Long? = runCatching {
+        File(KGSL_DIR, "freq_table_mhz").readText().trim().split(Regex("\\s+")).first().toLong()
+    }.getOrNull()
 
     private fun line(b: StringBuilder, key: String, value: String) {
         b.append(key.padEnd(24)).append(value).append('\n')
@@ -272,6 +320,10 @@ object DeviceReport {
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
         k("GPU clock pin", if (SessionPrefs.gpuClockPin(context)) "on, a session holds the top level" else "off, the platform governs the level")
+        k("GPU clock now", gpuClockText(kgslNumber("clock_mhz"), kgslTop(), kgslNumber("max_clock_mhz"), kgslNumber("thermal_pwrlevel")) ?: "not reported")
+        k("GPU power levels", runCatching {
+            File(KGSL_DIR, "freq_table_mhz").readText().trim().replace(Regex("\\s+"), " ")
+        }.getOrNull()?.let { "$it MHz" } ?: "not reported")
         k("System Vulkan ICD", if (File("/vendor/lib64/hw/vulkan.adreno.so").exists()) "/vendor/lib64/hw/vulkan.adreno.so" else "not at the usual path")
 
         h("Display")

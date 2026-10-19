@@ -33,6 +33,28 @@ class DeviceReportPerfTest {
         )
     }
 
+    @Test fun aHeldClockIsReadBesideThePlatformsCeiling() {
+        assertEquals(
+            "475 of 719 MHz (platform level 4 caps it at 475 MHz)",
+            DeviceReport.gpuClockText(475, 719, 475, 4),
+        )
+        assertEquals("719 MHz (top level)", DeviceReport.gpuClockText(719, 719, 719, 0))
+        assertEquals(
+            "475 of 719 MHz (below the ceiling 719 MHz)",
+            DeviceReport.gpuClockText(475, 719, 719, 0),
+        )
+        assertEquals(
+            "295 of 719 MHz (platform level 7 caps it at 295 MHz)",
+            DeviceReport.gpuClockText(295, 719, 295, 7),
+        )
+    }
+
+    @Test fun aClockWithNoCeilingToCompareIsNotReported() {
+        assertEquals(null, DeviceReport.gpuClockText(null, 719, 719, 0))
+        assertEquals(null, DeviceReport.gpuClockText(475, 719, null, 4))
+        assertEquals("475 MHz (below the ceiling 719 MHz)", DeviceReport.gpuClockText(475, null, 719, 0))
+    }
+
     @Test fun aDisplayWithoutANameOrModesStillReads() {
         assertEquals("id 0 · unnamed · 60.00 Hz · modes not reported", DeviceReport.sessionDisplayText(0, null, 60f, emptyList()))
         assertEquals("id 0 · unnamed · 60.00 Hz · modes not reported", DeviceReport.sessionDisplayText(0, "  ", 60f, emptyList()))

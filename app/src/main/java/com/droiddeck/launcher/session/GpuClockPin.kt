@@ -25,6 +25,13 @@ import java.io.File
  * platform moved the ceiling rather than that the pin did not take. `perf.csv` writes the pin state
  * next to the clock and the ceiling so a report can tell the two apart.
  *
+ * The switch only acts when its value changes. A clamp moves the clock down to the level the
+ * platform allows, and the clamp is undone later by raising the ceiling, not by moving the clock:
+ * repeating the same hold then does nothing, and the clock stays at the clamped level while the
+ * ceiling is back at the top. That is why a hold can be forced ([reassert] with `force`), which
+ * cycles the switch so the driver reevaluates the level. This is the one case where a held clock
+ * reads below the ceiling: the platform allows more than the clock is at.
+ *
  * `min_pwrlevel` and `max_pwrlevel` are left alone: on this driver they are the same level index
  * under different names (0 is the top, 4 is the 475 MHz floor), and the level the thermal engine
  * writes is the one that decides, so writing either would be a claim the pin cannot keep.
@@ -45,8 +52,16 @@ object GpuClockPin {
     var lever = ""
         private set
 
+    /** Why the level node could not be written, for a report, when the ioctl is the lever in use. */
+    @Volatile
+    var levelRefused: String? = null
+        private set
+
     /** Null until the sysfs node has been tried, then whether it accepts a write on this device. */
     private var levelWritable: Boolean? = null
+
+    /** Whether `KGSL_PROP_PWRCTRL` is currently zeroed, so [reassert] knows a cycle is needed. */
+    private var ioctlOn = false
 
     private val supported: Boolean by lazy { File(KGSL_NODE).exists() }
 
@@ -76,12 +91,15 @@ object GpuClockPin {
      * While a session runs: a level written once is not held forever, and the ceiling itself can
      * move. Repeating the hold keeps the clock at whatever the platform currently allows, and the
      * clock next to the ceiling in `perf.csv` shows whether it stayed there.
+     *
+     * [force] cycles the switch instead of repeating it, for when the clock is below the ceiling:
+     * a repeated value is a no-op to the driver, a changed one makes it reevaluate the level.
      */
     @Synchronized
-    fun reassert(): Boolean {
+    fun reassert(force: Boolean = false): Boolean {
         if (!pinned) return false
         return try {
-            lever = hold()
+            lever = hold(force)
             true
         } catch (t: Throwable) {
             Log.w(TAG, "re-assert", t)
@@ -99,7 +117,7 @@ object GpuClockPin {
         if (File(context.filesDir, MARKER).exists()) clear(context)
     }
 
-    private fun hold(): String {
+    private fun hold(force: Boolean = false): String {
         if (levelWritable != false) {
             try {
                 File(PWRLEVEL_NODE).writeText("0")
@@ -108,13 +126,24 @@ object GpuClockPin {
                 return "level"
             } catch (t: Throwable) {
                 if (levelWritable == null) {
+                    levelRefused = refusal(t)
                     Log.i(TAG, "hold: $PWRLEVEL_NODE refused (${t.message}), asking the driver instead")
                 }
                 levelWritable = false
             }
         }
+        if (force && ioctlOn) WaylandCompositor.nativeSetGpuTurbo(false)
         WaylandCompositor.nativeSetGpuTurbo(true)
+        ioctlOn = true
         return "ioctl"
+    }
+
+    /** `Permission denied` out of a Kotlin file error that wraps it in its own path and type. */
+    private fun refusal(t: Throwable): String {
+        val message = t.message ?: return "refused"
+        val open = message.lastIndexOf('(')
+        val close = message.lastIndexOf(')')
+        return if (open in 0 until close) message.substring(open + 1, close) else message
     }
 
     private fun clear(context: Context) {
@@ -124,6 +153,7 @@ object GpuClockPin {
             } catch (t: Throwable) {
                 Log.w(TAG, "clear", t)
             }
+            ioctlOn = false
         }
         // A written power level is not taken back: that node is the platform's, and its thermal
         // engine owns the value from here on.
