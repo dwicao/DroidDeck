@@ -18,6 +18,7 @@ import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.EsyncPacks
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -38,19 +39,93 @@ object DeviceReport {
     }
 
     /**
-     * Lines added to a written report once the session's display mode has settled, which happens
-     * after the report is first written: what the guest is asked to draw, and what the layer is
-     * sampled at, which are different numbers while frame generation is on.
+     * Lines added to a written report once the session's surface is up, which is after the report is
+     * first written: what the guest is asked to draw, what the layer is sampled at, which display it
+     * is on, and whether the GPU's clock is held. The pacing numbers are only known here (the
+     * display's mode settles after the first frame), and the block is written again when they change.
      */
-    fun appendPacing(context: Context, target: File, displayHz: Float, guestFps: Int, outputHz: Float) {
+    fun appendPacing(
+        context: Context,
+        target: File,
+        display: Display?,
+        displayHz: Float,
+        guestFps: Int,
+        outputHz: Float,
+        note: String? = null,
+    ) {
         val guest = if (guestFps > 0) "$guestFps fps" else "follows the panel"
-        val line = "Session pacing         guest $guest · layer ${hz(outputHz)} · display ${hz(displayHz)}" +
-            " · ${com.droiddeck.launcher.gpu.FrameGen.label(context)}\n"
+        val text = buildString {
+            line(this, "Session pacing", "guest $guest · layer ${hz(outputHz)} · display ${hz(displayHz)}" +
+                " · ${com.droiddeck.launcher.gpu.FrameGen.label(context)}")
+            sessionDisplayLine(display)?.let { line(this, "Session display", it) }
+            line(
+                this, "GPU clock pin",
+                if (GpuClockPin.pinned) "held at its top (${GpuClockPin.lever})" else "not held",
+            )
+            if (note != null) line(this, "Pacing note", note)
+        }
         try {
-            target.appendText(line)
+            target.appendText(text)
         } catch (e: Exception) {
             Log.w(TAG, "could not append pacing to $target", e)
         }
+    }
+
+    private fun line(b: StringBuilder, key: String, value: String) {
+        b.append(key.padEnd(24)).append(value).append('\n')
+    }
+
+    /**
+     * Which display the session ended up on, and the rates it reports. The panel lines above describe
+     * the phone's own display; a session on an external screen reports its own, and a report that
+     * named only the phone led a rate mismatch to be read as a pacing bug.
+     */
+    internal fun sessionDisplayLine(display: Display?): String? {
+        val d = display ?: return null
+        val rates = runCatching { d.supportedModes.map { it.refreshRate } }.getOrDefault(emptyList())
+        val name = runCatching { d.name }.getOrNull()
+        return sessionDisplayText(d.displayId, name, d.refreshRate, rates)
+    }
+
+    /** The text half of [sessionDisplayLine], so what a report says about a display can be tested. */
+    internal fun sessionDisplayText(id: Int, name: String?, refreshHz: Float, rates: List<Float>): String {
+        val label = name?.takeIf { it.isNotBlank() } ?: "unnamed"
+        val modes = refreshModesSummary(rates).ifEmpty { "not reported" }
+        return "id $id · $label · ${hz(refreshHz)} · modes $modes"
+    }
+
+    /**
+     * Battery state and temperature, from the sticky power broadcast. A session that slowed down can
+     * look the same whether the phone was on a charger or on the cell, and charging warms the pack
+     * while the SoC's own thermals are still fine, so a report carries both.
+     */
+    internal fun batteryLines(context: Context): List<Pair<String, String>> {
+        val intent = runCatching {
+            context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+        }.getOrNull() ?: return emptyList()
+        val lines = ArrayList<Pair<String, String>>(2)
+        val status = when (intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)) {
+            android.os.BatteryManager.BATTERY_STATUS_CHARGING -> "charging"
+            android.os.BatteryManager.BATTERY_STATUS_FULL -> "full"
+            android.os.BatteryManager.BATTERY_STATUS_DISCHARGING -> "discharging"
+            android.os.BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "not charging"
+            else -> "status unknown"
+        }
+        val plugged = when (intent.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0)) {
+            android.os.BatteryManager.BATTERY_PLUGGED_AC -> ", AC"
+            android.os.BatteryManager.BATTERY_PLUGGED_USB -> ", USB"
+            android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> ", wireless"
+            else -> ""
+        }
+        val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+        val percent = if (level >= 0 && scale > 0) String.format(Locale.US, " (%d%%)", level * 100 / scale) else ""
+        lines += "Battery" to "$status$plugged$percent"
+        val tenths = intent.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+        if (tenths in 1..1000) {
+            lines += "Battery temperature" to String.format(Locale.US, "%.1f C", tenths / 10.0)
+        }
+        return lines
     }
 
     private fun hz(value: Float): String = String.format(Locale.US, "%.2f Hz", value)
@@ -178,6 +253,7 @@ object DeviceReport {
             }
             k("Power saver", pm.isPowerSaveMode)
         }
+        for ((key, value) in batteryLines(context)) k(key, value)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val rate = runCatching { context.getSystemService(PerformanceHintManager::class.java)?.preferredUpdateRateNanos }.getOrNull()
             k("ADPF hint sessions", if (rate == null || rate <= 0) "not supported" else "supported (preferred update ${rate / 1000} us)")
@@ -195,6 +271,7 @@ object DeviceReport {
         h("GPU")
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
+        k("GPU clock pin", if (SessionPrefs.gpuClockPin(context)) "on, a session holds the top level" else "off, the platform governs the level")
         k("System Vulkan ICD", if (File("/vendor/lib64/hw/vulkan.adreno.so").exists()) "/vendor/lib64/hw/vulkan.adreno.so" else "not at the usual path")
 
         h("Display")

@@ -25,4 +25,16 @@ class DeviceReportPerfTest {
         assertEquals("60 Hz", DeviceReport.refreshModesSummary(listOf(59.94f)))
         assertEquals("", DeviceReport.refreshModesSummary(emptyList()))
     }
+
+    @Test fun aSessionDisplayIsNamedWithItsOwnRates() {
+        assertEquals(
+            "id 48 · HDMI screen · 75.00 Hz · modes 75 Hz, 60 Hz",
+            DeviceReport.sessionDisplayText(48, "HDMI screen", 75f, listOf(60f, 75f)),
+        )
+    }
+
+    @Test fun aDisplayWithoutANameOrModesStillReads() {
+        assertEquals("id 0 · unnamed · 60.00 Hz · modes not reported", DeviceReport.sessionDisplayText(0, null, 60f, emptyList()))
+        assertEquals("id 0 · unnamed · 60.00 Hz · modes not reported", DeviceReport.sessionDisplayText(0, "  ", 60f, emptyList()))
+    }
 }

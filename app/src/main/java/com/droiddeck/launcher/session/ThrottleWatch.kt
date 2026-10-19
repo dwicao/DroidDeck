@@ -21,9 +21,14 @@ import java.util.Locale
  * A session that starts fast and settles lower looks the same from the panel whether the guest is
  * being paced too slowly, the clocks are being taken away, or the host's own work is stealing the
  * frame. The cap a cluster is held to and the clock it could reach are different numbers: only
- * `scaling_max_freq` falling below `cpuinfo_max_freq` means the platform took the clock away.
+ * `scaling_max_freq` falling below `cpuinfo_max_freq` means the platform took the clock away, and
+ * on the GPU side `max_clock_mhz` falling is the same statement about the power level.
  * Both are written to `perf.csv` every two seconds beside the game's frame rate, and a line is
  * logged the moment a cap changes, so a report can tell the three apart instead of guessing.
+ *
+ * This is also where a held GPU clock is re-asserted: it is the one place that sees both the clock
+ * and the ceiling the platform allows, so a pin that stopped taking can be repeated and the result
+ * read back from the next row.
  */
 object ThrottleWatch {
     private const val TAG = "ThrottleWatch"
@@ -33,6 +38,9 @@ object ThrottleWatch {
     private const val CPU_ONLINE = "/sys/devices/system/cpu/online"
     private const val KGSL = "/sys/class/kgsl/kgsl-3d0"
     private const val THERMAL_ROOT = "/sys/class/thermal"
+
+    /** Samples between GPU-hold re-asserts, so about every [PERIOD_MS] * this. */
+    private const val REASSERT_EVERY = 3
     private val CPU_DIR = Regex("cpu\\d+")
 
     /** For the panel, so a frame rate can be read next to the state of the chips. */
@@ -47,6 +55,7 @@ object ThrottleWatch {
     private var ticks = 0
     private var lastLimits = emptyList<Int?>()
     private var lastGpuFloor: Long? = null
+    private var lastGpuTop: Long? = null
     private var lastThermal = Int.MIN_VALUE
     private var lastOnline: String? = null
     private var ddrNode: String? = null
@@ -66,6 +75,7 @@ object ThrottleWatch {
         ticks = 0
         lastLimits = emptyList()
         lastGpuFloor = null
+        lastGpuTop = null
         lastThermal = Int.MIN_VALUE
         lastOnline = null
         ddrNode = thermalNode("ddr")
@@ -130,6 +140,10 @@ object ThrottleWatch {
         val cpuTemp = thermalCelsius(LinuxRuntime.cpuTempSource()?.let { firstNumber(it) })
         val ddrTemp = thermalCelsius(ddrNode?.let { firstNumber(it) })
         val gpuBusy = firstNumber("$KGSL/gpu_busy_percentage")
+        // The devfreq governor's own load estimate, which is the number its clock decision follows.
+        // KGSL's `gpu_busy_percentage` reads a constant on the measured device (13% idle and 13%
+        // with a game drawing), so a second, independent estimate is what a report needs.
+        val gpuGovLoad = firstNumber("$KGSL/devfreq/gpu_load")
         val gpuFloor = firstNumber("$KGSL/min_clock_mhz")
         val gpuTop = firstNumber("$KGSL/max_clock_mhz")
         val pwrLevel = firstNumber("$KGSL/thermal_pwrlevel")
@@ -147,6 +161,8 @@ object ThrottleWatch {
             headroom?.let { String.format(Locale.US, "%.2f", it) } ?: "",
             gpuMhz?.toString() ?: "",
             gpuBusy?.toString() ?: "",
+            gpuGovLoad?.toString() ?: "",
+            if (GpuClockPin.pinned) "1" else "0",
             gpuTemp?.let { String.format(Locale.US, "%.1f", it) } ?: "",
             gpuFloor?.toString() ?: "",
             gpuTop?.toString() ?: "",
@@ -171,11 +187,17 @@ object ThrottleWatch {
             writer.flush()
         }
 
-        logCapChanges(clusters, limits, gpuFloor, status, onlineNow)
+        val held = GpuClockPin.pinned
+        val topMoved = logCapChanges(clusters, limits, gpuFloor, gpuTop, status, onlineNow, held)
         lastLimits = limits
         lastGpuFloor = gpuFloor
+        lastGpuTop = gpuTop
         lastThermal = status
         lastOnline = onlineNow
+
+        // A held clock is repeated when the ceiling moves, and now and then anyway: whether it
+        // still takes shows up in the next row's clock against that ceiling.
+        if (held && (topMoved || ticks % REASSERT_EVERY == 0)) GpuClockPin.reassert()
 
         ticks++
         if (ticks % LOG_EVERY == 0) {
@@ -186,8 +208,10 @@ object ThrottleWatch {
                     clusters[i].text(nowMhz[i], limits[i])
                 })
                 if (gpuMhz != null) append(String.format(Locale.US, " | gpu %d MHz", gpuMhz))
-                if (gpuBusy != null) append(String.format(Locale.US, " %d%%", gpuBusy))
+                val load = gpuGovLoad ?: gpuBusy
+                if (load != null) append(String.format(Locale.US, " %d%%", load))
                 if (gpuTemp != null) append(String.format(Locale.US, " @ %.1f C", gpuTemp))
+                if (GpuClockPin.pinned) append(" held")
                 if (cpuTemp != null) append(String.format(Locale.US, " | cpu %.1f C", cpuTemp))
                 if (headroom != null) append(String.format(Locale.US, " | headroom %.2f", headroom))
                 if (memAvailable != null) append(String.format(Locale.US, " | mem %d MB", memAvailable / 1024))
@@ -209,9 +233,11 @@ object ThrottleWatch {
         clusters: List<Cluster>,
         limits: List<Int?>,
         gpuFloor: Long?,
+        gpuTop: Long?,
         status: Int,
         onlineNow: String,
-    ) {
+        held: Boolean,
+    ): Boolean {
         val changed = ArrayList<String>(4)
         if (lastLimits.size == limits.size) {
             clusters.indices.forEach { i ->
@@ -222,12 +248,21 @@ object ThrottleWatch {
         }
         val wasFloor = lastGpuFloor
         if (wasFloor != null && gpuFloor != null && wasFloor != gpuFloor) changed += "gpu floor $wasFloor→$gpuFloor MHz"
+        val wasTop = lastGpuTop
+        val topMoved = wasTop != null && gpuTop != null && wasTop != gpuTop
+        if (topMoved) {
+            // The ceiling is the platform's, so a held clock follows it down rather than past it:
+            // saying so here keeps the two cases apart when the frame rate falls with it.
+            changed += "gpu top $wasTop→$gpuTop MHz" +
+                if (held) " (held, the platform lowered the ceiling)" else ""
+        }
         if (lastThermal != Int.MIN_VALUE && lastThermal != status) changed += thermalName(status)
         val wasOnline = lastOnline
         if (wasOnline != null && onlineNow.isNotEmpty() && wasOnline != onlineNow) {
             changed += "cores online $wasOnline→$onlineNow"
         }
         if (changed.isNotEmpty()) Log.i(TAG, "cap: " + changed.joinToString(", "))
+        return topMoved
     }
 
     /** One clock domain: the cores that can reach the same top frequency. */
@@ -273,7 +308,7 @@ object ThrottleWatch {
     private fun csvHeader(count: Int): String {
         val cells = mutableListOf(
             "t_s", "game_fps", "thermal", "online", "headroom",
-            "gpu_mhz", "gpu_busy_pct", "gpu_temp_c", "gpu_min_mhz", "gpu_max_mhz",
+            "gpu_mhz", "gpu_busy_pct", "gpu_gov_load", "gpu_pin", "gpu_temp_c", "gpu_min_mhz", "gpu_max_mhz",
             "gpu_pwrlevel", "gpu_throttle", "bcl", "lm",
             "cpu_temp_c", "ddr_temp_c", "mem_avail_kb", "swap_free_kb",
         )
@@ -342,4 +377,22 @@ internal fun thermalCelsius(raw: Long?): Double? {
         else -> value.toDouble()
     }
     return if (degrees in 1.0..150.0) degrees else null
+}
+
+/**
+ * GPU load from KGSL's `gpubusy` pair: microseconds busy and microseconds elapsed, over the window
+ * the node restarts at every read. The kernel's own `gpu_busy_percentage` node is not usable for
+ * this on the measured device — it kept a window that closed only when the GPU idled, and printed a
+ * constant 13% through a session that had the GPU at its top clock — while the pair read every
+ * sample gives the load over that sample.
+ *
+ * A window that does not match the sampling period is not a window (a driver that counts from boot
+ * would land here), so nothing is reported rather than something wrong.
+ */
+internal fun gpuLoadPercent(pair: List<Long>, periodMs: Long): Long? {
+    val busy = pair.getOrNull(0) ?: return null
+    val window = pair.getOrNull(1) ?: return null
+    if (busy < 0 || window <= 0 || busy > window) return null
+    if (window < periodMs * 1000 / 4 || window > periodMs * 1000 * 2) return null
+    return busy * 100 / window
 }

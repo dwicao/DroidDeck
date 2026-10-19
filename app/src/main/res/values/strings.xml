@@ -534,7 +534,7 @@
     <string name="perf_gsrealtime_hint">Prioritizes the compositor\'s GPU work. Can smooth frame pacing at some cost to games.</string>
     <string name="perf_gpu">GPU</string>
     <string name="perf_gpuclock">Hold the GPU at its top clock</string>
-    <string name="perf_gpuclock_hint">Adreno only. Fewer hitches, more battery use and heat.</string>
+    <string name="perf_gpuclock_hint">Adreno only. On by default. A session holds the top level the platform allows: fewer hitches, more heat. It cannot lift a level the platform\'s thermal engine has taken away.</string>
     <string name="perf_fixes">Session fixes</string>
     <string name="perf_sysmem">Turnip: sysmem rendering</string>
     <string name="perf_sysmem_hint">Faster for Steam and most games. Required on Adreno 710/720/722.</string>

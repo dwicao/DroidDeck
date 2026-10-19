@@ -353,7 +353,7 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gamescopeRealtime", on).apply()
     }
 
-    fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)
+    fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", true)
 
     fun setGpuClockPin(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()

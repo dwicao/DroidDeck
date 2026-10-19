@@ -306,6 +306,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var secondScreenDisplays by mutableStateOf<List<SecondScreenDisplay>>(emptyList())
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     private var started = false
+    @Volatile private var pacedLine: String? = null
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
     private val displayListener = object : DisplayManager.DisplayListener {
@@ -328,6 +329,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val plan = pacePlan(hz)
         SessionState.fpsLimit = plan.guestFps
         CompositorHost.pace(plan.guestFps, plan.outputHz)
+        notePacing(hz, plan)
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -1314,18 +1316,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val size = live ?: if (SessionState.running) previous else outputSize()
         SessionState.outputSize = size
         val hz = refreshHz()
-        if (!SessionState.running) SessionState.refreshHz = hz
+        SessionState.refreshHz = hz
         val plan = pacePlan(hz)
         SessionState.fpsLimit = plan.guestFps
-        if (!SessionState.running) {
-            Log.i(TAG, "pace: guest " + (if (plan.guestFps > 0) "${plan.guestFps} fps" else "follows the panel") +
-                ", layer ${plan.outputHz} Hz")
-            SessionState.logDirectory?.let {
-                com.droiddeck.launcher.core.DeviceReport.appendPacing(
-                    this, File(it, "device.txt"), hz, plan.guestFps, plan.outputHz,
-                )
-            }
-        }
+        notePacing(hz, plan)
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -1475,6 +1469,34 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             gameSession = sessionMode() != SessionService.MODE_DESKTOP,
         )
 
+    /**
+     * The plan this session is paced at, logged and appended to the report the moment it changes.
+     *
+     * The report itself is written before the session's display has a mode, so this is where the
+     * numbers a report is read for land. It used to run only while the session had not started yet,
+     * which skipped it on every surface re-creation — the case that mattered.
+     */
+    private fun notePacing(hz: Float, plan: SessionPacing.Plan) {
+        SessionState.refreshHz = hz
+        val note = SessionPacing.note(plan, FrameGen.mode(this), hz)
+        val line = buildString {
+            append("pace: guest ")
+            append(if (plan.guestFps > 0) "${plan.guestFps} fps" else "follows the panel")
+            append(", layer ").append(plan.outputHz).append(" Hz, display ").append(hz).append(" Hz")
+            if (note != null) append(" — ").append(note)
+        }
+        if (line == pacedLine) return
+        pacedLine = line
+        Log.i(TAG, line)
+        SessionState.logDirectory?.let {
+            com.droiddeck.launcher.core.DeviceReport.appendPacing(
+                this, File(it, "device.txt"),
+                if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay,
+                hz, plan.guestFps, plan.outputHz, note,
+            )
+        }
+    }
+
     private fun refreshHz(): Float {
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
@@ -1494,7 +1516,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     private fun applyFrameGen() {
         val hz = refreshHz()
-        val wasFps = SessionState.fpsLimit
         Thread({
             val problem = FrameGen.apply(this, hz)
             val state = Lossless.state(this)
@@ -1504,12 +1525,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             runOnUiThread {
                 lossless = state
                 if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
-                if (plan.guestFps != wasFps) {
-                    Log.i(TAG, "pace: guest " + (if (plan.guestFps > 0) "${plan.guestFps} fps" else "follows the panel") +
-                        ", layer ${plan.outputHz} Hz")
-                }
                 SessionState.fpsLimit = plan.guestFps
                 if (CompositorHost.isStarted) CompositorHost.pace(plan.guestFps, plan.outputHz)
+                notePacing(hz, plan)
             }
         }, "frame-gen").start()
     }
