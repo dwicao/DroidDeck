@@ -85,6 +85,7 @@ import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
+import com.droiddeck.launcher.session.SessionPacing
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -320,8 +321,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         if (!CompositorHost.isStarted) return
         val display = (if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay) ?: return
         if (display.displayId != displayId) return
-        val hz = display.refreshRate
-        if (hz > 1f) WaylandCompositor.nativeSetOutputRefreshRate(hz)
+        val hz = refreshHz()
+        if (hz <= 1f) return
+        WaylandCompositor.nativeSetOutputRefreshRate(hz)
+        SessionState.refreshHz = hz
+        val plan = pacePlan(hz)
+        SessionState.fpsLimit = plan.guestFps
+        CompositorHost.pace(plan.guestFps, plan.outputHz)
     }
     private var isHomeApp by mutableStateOf(false)
     private var androidApps by mutableStateOf<List<HomeApp.LaunchableApp>>(emptyList())
@@ -369,9 +375,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         }
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
-            SessionState.fpsLimit = SessionPrefs.fpsLimit(
+            SessionState.fpsChoice = SessionPrefs.fpsLimit(
                 this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
             )
+            SessionState.fpsLimit = SessionState.fpsChoice
         }
         Log.i(TAG, "perf: " + PerfMode.apply(this, SessionState.fpsLimit))
         if (!SessionState.running) SessionState.followScreen = followChoice()
@@ -1306,7 +1313,19 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else null
         val size = live ?: if (SessionState.running) previous else outputSize()
         SessionState.outputSize = size
-        if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        val hz = refreshHz()
+        if (!SessionState.running) SessionState.refreshHz = hz
+        val plan = pacePlan(hz)
+        SessionState.fpsLimit = plan.guestFps
+        if (!SessionState.running) {
+            Log.i(TAG, "pace: guest " + (if (plan.guestFps > 0) "${plan.guestFps} fps" else "follows the panel") +
+                ", layer ${plan.outputHz} Hz")
+            SessionState.logDirectory?.let {
+                com.droiddeck.launcher.core.DeviceReport.appendPacing(
+                    this, File(it, "device.txt"), hz, plan.guestFps, plan.outputHz,
+                )
+            }
+        }
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -1354,7 +1373,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         CompositorHost.startOrAttach(
             holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
-            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), SessionState.fpsLimit,
+            applicationInfo.nativeLibraryDir, size.first, size.second, hz, plan.guestFps, plan.outputHz,
         )
         if (SessionState.running && size != previous) {
             Log.i(TAG, "follow screen: ${previous.first}x${previous.second} -> ${size.first}x${size.second} on a new surface")
@@ -1447,23 +1466,50 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice)
     }
 
+    private fun sessionMode(): String =
+        intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+
+    private fun pacePlan(hz: Float, armed: Boolean = FrameGen.ready(this)): SessionPacing.Plan =
+        SessionPacing.plan(
+            SessionState.fpsChoice, FrameGen.mode(this), hz, armed,
+            gameSession = sessionMode() != SessionService.MODE_DESKTOP,
+        )
+
     private fun refreshHz(): Float {
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
-        val hz = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
+        val modes = display?.supportedModes.orEmpty().filter { it.refreshRate > 1f }
+        val hz = modes.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
             ?: display?.refreshRate ?: 60f
-        val capped = minOf(hz, PerfMode.peakRefreshCap(this))
+        // A reported rate with no matching mode cannot be presented; pacing to it makes the
+        // compositor hold every frame for a vsync that never comes.
+        val snapped = modes.filter { it.refreshRate <= hz + 0.5f }.maxByOrNull { it.refreshRate }?.refreshRate
+            ?: modes.minByOrNull { it.refreshRate }?.refreshRate ?: hz
+        if (kotlin.math.abs(snapped - hz) > 0.5f) {
+            Log.w(TAG, "refresh: display reports $hz Hz but has no such mode, pacing at $snapped Hz")
+        }
+        val capped = minOf(snapped, PerfMode.peakRefreshCap(this))
         return if (capped > 1f) capped else 60f
     }
 
     private fun applyFrameGen() {
         val hz = refreshHz()
+        val wasFps = SessionState.fpsLimit
         Thread({
             val problem = FrameGen.apply(this, hz)
             val state = Lossless.state(this)
+            // An engine that could not arm must not leave the guest capped for frames nothing fills.
+            val armed = problem == null && FrameGen.ready(this)
+            val plan = pacePlan(hz, armed)
             runOnUiThread {
                 lossless = state
                 if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
+                if (plan.guestFps != wasFps) {
+                    Log.i(TAG, "pace: guest " + (if (plan.guestFps > 0) "${plan.guestFps} fps" else "follows the panel") +
+                        ", layer ${plan.outputHz} Hz")
+                }
+                SessionState.fpsLimit = plan.guestFps
+                if (CompositorHost.isStarted) CompositorHost.pace(plan.guestFps, plan.outputHz)
             }
         }, "frame-gen").start()
     }

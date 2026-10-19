@@ -90,6 +90,10 @@ object SessionState {
     @Volatile
     var fpsLimit: Int = 0
 
+    /** What the user picked; [fpsLimit] can be lower once frame generation is on. */
+    @Volatile
+    var fpsChoice: Int = 0
+
     @Volatile
     var firstFrameSeen = false
 

@@ -37,6 +37,24 @@ object DeviceReport {
         }
     }
 
+    /**
+     * Lines added to a written report once the session's display mode has settled, which happens
+     * after the report is first written: what the guest is asked to draw, and what the layer is
+     * sampled at, which are different numbers while frame generation is on.
+     */
+    fun appendPacing(context: Context, target: File, displayHz: Float, guestFps: Int, outputHz: Float) {
+        val guest = if (guestFps > 0) "$guestFps fps" else "follows the panel"
+        val line = "Session pacing         guest $guest · layer ${hz(outputHz)} · display ${hz(displayHz)}" +
+            " · ${com.droiddeck.launcher.gpu.FrameGen.label(context)}\n"
+        try {
+            target.appendText(line)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not append pacing to $target", e)
+        }
+    }
+
+    private fun hz(value: Float): String = String.format(Locale.US, "%.2f Hz", value)
+
     /** Name of an ApplicationExitInfo reason code, so a report says "LOW_MEMORY" instead of "3". */
     internal fun exitReasonName(reason: Int): String = when (reason) {
         0 -> "UNKNOWN"
