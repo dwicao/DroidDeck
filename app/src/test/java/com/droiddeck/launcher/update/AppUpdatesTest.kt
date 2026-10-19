@@ -293,6 +293,37 @@ class AppUpdatesTest {
         assertTrue(g.certain)
     }
 
+    @Test fun anOlderBuildInPreviewHistoryKeepsStableAsAnUncertainGuess() {
+        val withHistory = AppUpdates.Catalog(stable, release("1111111"), emptyList(), 0L, recentPreview)
+        val g = AppUpdates.guessFollow(withHistory, me("2".repeat(40), version = "0.1.0"))
+        assertEquals(Channel.STABLE, g.follow.channel)
+        assertFalse(g.certain)
+    }
+
+    @Test fun anOlderCataloguedBuildDoesNotPersistAGuessAndExplicitChoicesStillWin() {
+        val context = org.robolectric.RuntimeEnvironment.getApplication()
+        val preferences = context.getSharedPreferences("app_updates", android.content.Context.MODE_PRIVATE)
+        preferences.edit().clear().commit()
+        try {
+            val installed = me("2".repeat(40), version = "0.1.0")
+            val newerStable = release("0".repeat(40), version = "9999.0.0")
+            val currentPreview = release(installed.commit)
+            val newerCatalog = AppUpdates.Catalog(newerStable, currentPreview, emptyList(), 0L)
+            assertEquals(Channel.STABLE, AppUpdates.follow(context, newerCatalog, installed).channel)
+            assertNull(preferences.getString("channel", null))
+            assertEquals(Channel.STABLE, AppUpdates.follow(context, null, installed).channel)
+            assertNull(preferences.getString("channel", null))
+            for (choice in listOf(Follow(Channel.STABLE), Follow(Channel.NIGHTLY), Follow(Channel.TEST, 93))) {
+                AppUpdates.setFollow(context, choice)
+                val actual = AppUpdates.follow(context, newerCatalog, installed)
+                assertEquals(choice.channel, actual.channel)
+                assertEquals(choice.pr, actual.pr)
+            }
+        } finally {
+            preferences.edit().clear().commit()
+        }
+    }
+
     @Test fun runningTheCatalogStableIsCertainStable() {
         val g = AppUpdates.guessFollow(catalog, me(stable.commit))
         assertEquals(AppUpdates.Channel.STABLE, g.follow.channel)
