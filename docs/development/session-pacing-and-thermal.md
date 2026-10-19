@@ -57,8 +57,8 @@ it. `max_clock_mhz=719`, `min_clock_mhz=475`, `clock_mhz=475`, `thermal_pwrlevel
 same moment it capped the CPU clusters, and `max_clock_mhz` fell 719 → 295 → 348 MHz. Every sample of
 that session had `gpu_mhz == gpu_max_mhz`: the clock always sat on the ceiling the platform allowed,
 including while the ceiling was coming down. So a low GPU clock is not the GPU's governor failing to
-scale — it is the ceiling. `min_clock_mhz` is the floor, and it is the number that moved in the
-earlier idle measurements.
+scale — it is the ceiling. (`min_clock_mhz`, the floor, sat at 475 MHz in every idle reading and is
+written to `perf.csv` for the case where it does move.)
 
 ## What 0.4.8 changed
 
@@ -179,13 +179,14 @@ A saved `gameCpus` value still wins, so anyone who chose their own list keeps it
 
 1. `perf.csv`, the row where `game_fps` falls.
 2. Did `c1_limit_mhz` (or any cluster's) fall at the same time? That is the platform.
-3. Did `gpu_max_mhz` fall, or `gpu_min_mhz` fall below 475, or `gpu_pwrlevel` rise? That is the
-   GPU's ceiling, taken the same way. `gpu_pin` says whether a session was holding the level while
-   it moved, and `ThrottleWatch`'s `cap:` line says so in words.
+3. Did `gpu_max_mhz` fall? That is the GPU's ceiling, taken the same way as the clusters'. (A
+   `gpu_min_mhz` below 475 or a `gpu_pwrlevel` above 0 is the level moving too.) `gpu_pin` says
+   whether a session was holding the level while it moved, and `ThrottleWatch`'s `cap:` line says so
+   in words.
 4. Did `thermal` move from `none` to `moderate`/`severe` first? Then the caps are downstream of it.
-   On the measured device they were *not* downstream of it: the 0.4.8 cliff arrived with the pack at
-   59–61 °C and falling, so the platform was holding a sustained-power budget rather than reacting to
-   a hot spot.
+   On the measured device they were *not* downstream of it: the 0.4.8 cliff arrived with the device
+   reporting 59–61 °C and cooling, so the platform was holding a sustained-power budget rather than
+   reacting to a hot spot.
 5. If none of that moved, the drop is in the guest (its own load) or in the host's compositor —
    compare against the compositor's `perf:` line in the same `session.log`.
 6. `device.txt`: `Session pacing` and `Pacing note` say what the session asked for and where that
