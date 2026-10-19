@@ -1228,3 +1228,86 @@ class LauncherSwitchWiringTest(unittest.TestCase):
                 path.write_text(script)
                 result = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True)
                 self.assertEqual(result.returncode, 0, "%s: %s" % (name, result.stderr))
+
+
+class InstallContentTest(unittest.TestCase):
+    """A copied install carries the manifest of the machine it came from, so a game whose files did
+    not all arrive looks complete to Steam. The launch record has to say what is missing."""
+
+    def layout(self, root):
+        steamapps = Path(root) / "steamapps"
+        steamapps.mkdir(parents=True, exist_ok=True)
+        game = steamapps / "common" / "DroidDeck-7"
+        game.mkdir(parents=True, exist_ok=True)
+        return steamapps, game
+
+    def manifest(self, steamapps, size, build="25297493"):
+        (steamapps / "appmanifest_7.acf").write_text(
+            '"AppState"\n{\n\t"appid"\t\t"7"\n\t"SizeOnDisk"\t\t"%d"\n\t"buildid"\t\t"%s"\n}\n' % (size, build))
+
+    def test_a_folder_short_of_its_manifest_is_reported_with_the_difference(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steamapps, game = self.layout(tmp)
+            with (game / "Game.dll").open("wb") as sparse:
+                sparse.truncate(100 * 1024 * 1024)
+            self.manifest(steamapps, 500 * 1024 * 1024)
+            env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": tmp, "STEAM_COMPAT_INSTALL_PATH": str(game)}
+            lines, short = MODULE["content_report"](env, "7", str(game))
+            self.assertIn("content: the manifest of build 25297493 records 524288000 bytes; "
+                          "the folder holds 104857600 in 1 files", lines)
+            self.assertEqual(short, "400.0 MB of its 500.0 MB install is not there")
+
+    def test_a_shortfall_too_small_to_matter_is_not_called_short(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steamapps, game = self.layout(tmp)
+            (game / "Game.dll").write_bytes(b"x" * 1000)
+            self.manifest(steamapps, 4000)
+            env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": tmp, "STEAM_COMPAT_INSTALL_PATH": str(game)}
+            _, short = MODULE["content_report"](env, "7", str(game))
+            self.assertEqual(short, "")
+
+    def test_an_install_that_matches_its_manifest_is_not_called_short(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            steamapps, game = self.layout(tmp)
+            (game / "Game.dll").write_bytes(b"x" * 4000)
+            self.manifest(steamapps, 4000)
+            env = {"STEAM_COMPAT_CLIENT_INSTALL_PATH": tmp, "STEAM_COMPAT_INSTALL_PATH": str(game)}
+            lines, short = MODULE["content_report"](env, "7", str(game))
+            self.assertEqual(short, "")
+            self.assertNotIn("is not there", "\n".join(lines))
+
+    def test_a_manifest_in_a_library_beside_the_client_is_found_too(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "steamapps").mkdir(parents=True)
+            library = root / "storage" / "SteamLibrary"
+            (library / "steamapps").mkdir(parents=True)
+            (root / "steamapps/libraryfolders.vdf").write_text(
+                '"libraryfolders"\n{\n\t"1"\n\t{\n\t\t"path"\t\t"%s"\n\t}\n}\n' % library)
+            self.manifest(library / "steamapps", 4000)
+            self.assertIn('"SizeOnDisk"', MODULE["manifest_for"]({"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)}, "7"))
+            self.assertEqual(MODULE["manifest_for"]({"STEAM_COMPAT_CLIENT_INSTALL_PATH": str(root)}, "8"), "")
+
+    def test_the_bundles_a_unity_catalog_names_are_checked_against_the_folder(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            aa = Path(tmp) / "MuseDash_Data" / "StreamingAssets" / "aa"
+            bundles = aa / "StandaloneWindows64"
+            bundles.mkdir(parents=True)
+            present = "music_the_1_0123456789abcdef0123456789abcdef.bundle"
+            (bundles / present).write_bytes(b"x")
+            ids = ["{RuntimePath}/StandaloneWindows64/char_1_a_0123456789abcdef0123456789abcdef.bundle",
+                   "{RuntimePath}\\StandaloneWindows64\\char_2_a_0123456789abcdef0123456789abcdef.bundle",
+                   "StandaloneWindows64/%s" % present]
+            (aa / "catalog.json").write_text(json.dumps({"m_InternalIds": ids}))
+            missing, named, folder_name, groups = MODULE["bundles_missing"](tmp)
+            self.assertEqual((missing, named, folder_name), (2, 3, "StandaloneWindows64"))
+            self.assertEqual(groups, ["char_1 x1", "char_2 x1"])
+
+    def test_a_folder_that_cannot_be_counted_whole_does_not_claim_to_be_short(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for index in range(10):
+                (Path(tmp) / ("file%d" % index)).write_bytes(b"x" * 100)
+            total, files, capped = MODULE["measure"](tmp, limit=4)
+            self.assertTrue(capped)
+            self.assertEqual(files, 5)
+            self.assertEqual(total, 500)

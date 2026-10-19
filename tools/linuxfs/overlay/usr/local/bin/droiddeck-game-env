@@ -53,6 +53,21 @@ ARTIFACTS_TOTAL = 8 * 1024 * 1024
 ARTIFACTS_LIMIT = 16
 SCAN_LIMIT = 4000
 
+# An install that did not arrive whole cannot start, and its own manifest is what hides that: a
+# copied Steam install carries the manifest of the machine it came from, so the depot record says
+# the whole build is there and neither Steam nor the client asks for the part that never landed.
+# The same tolerance the kit export uses, and a floor so that a rounding difference is not one.
+ACF_SIZE = re.compile(r'"SizeOnDisk"\s*"(\d+)"')
+ACF_BUILD = re.compile(r'"buildid"\s*"(\d+)"')
+VDF_PATH = re.compile(r'"path"\s+"((?:[^"\\]|\\.)*)"')
+MEASURE_LIMIT = 400000
+MEASURE_SECONDS = 30.0
+MEASURE_SECONDS_QUIET = 3.0
+SHORT_TOLERANCE = 0.98
+SHORT_BYTES = 200 * 1024 * 1024
+QUICK_STOP = 60.0
+BUNDLE_TAIL = re.compile(r"_[0-9a-f]{32}\.bundle$")
+
 
 def game_id(env):
     prefix = env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/")
@@ -411,7 +426,11 @@ class GameLog:
         self._write(data)
 
     def stopped(self, status, seconds):
-        text = "droiddeck-game-env: app %s stopped after %.1f s (%s)" % (self.app_id, seconds, describe_status(status))
+        self.record("droiddeck-game-env: app %s stopped after %.1f s (%s)" % (self.app_id, seconds, describe_status(status)))
+
+    def record(self, text):
+        """A line of this engine's own into the game's log as well: what the engine concluded is the
+        first thing to read in it, and it has to survive the session log being trimmed."""
         print(text, file=sys.stderr)
         self._write(("\n" + text + "\n").encode("utf-8", "replace"))
 
@@ -512,13 +531,143 @@ def signature(path):
     return "signed" if int.from_bytes(header[table + 4:table + 8], "little") else "unsigned"
 
 
+def sizeof(bytes_):
+    value = float(bytes_)
+    for unit in ("bytes", "KB", "MB", "GB", "TB"):
+        if value < 1024 or unit == "TB":
+            return "%d %s" % (value, unit) if unit == "bytes" else "%.1f %s" % (value, unit)
+        value /= 1024.0
+
+
+def install_path(env, exe):
+    return env.get("STEAM_COMPAT_INSTALL_PATH") or (os.path.dirname(exe) if exe else "")
+
+
+def manifest_for(env, app_id):
+    """This app's manifest, wherever the library that holds its install keeps it: the one place the
+    size of what should be on disk is written down."""
+    if not app_id:
+        return ""
+    root = Path(env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or (Path.home() / ".local/share/Steam"))
+    name = "appmanifest_%s.acf" % app_id
+    candidates = [root / "steamapps" / name]
+    try:
+        vdf = (root / "steamapps/libraryfolders.vdf").read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        vdf = ""
+    for path in VDF_PATH.findall(vdf):
+        candidates.append(Path(path.replace("\\\\", "\\")) / "steamapps" / name)
+    for candidate in candidates:
+        try:
+            return candidate.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+    return ""
+
+
+def measure(path, limit=MEASURE_LIMIT, budget=MEASURE_SECONDS):
+    """Bytes and files under a game's folder. Bounded by both, because an install can hold a hundred
+    thousand files and this runs after each of its launches."""
+    deadline = time.monotonic() + budget
+    total = 0
+    files = 0
+    stack = [str(path)]
+    while stack:
+        try:
+            entries = os.scandir(stack.pop())
+        except OSError:
+            continue
+        with entries:
+            for entry in entries:
+                try:
+                    if entry.is_dir(follow_symlinks=False):
+                        stack.append(entry.path)
+                        continue
+                    if not entry.is_file(follow_symlinks=False):
+                        continue
+                    total += entry.stat(follow_symlinks=False).st_size
+                except OSError:
+                    continue
+                files += 1
+                if files > limit or (files % 512 == 0 and time.monotonic() > deadline):
+                    return total, files, True
+    return total, files, False
+
+
+def bundles_missing(folder):
+    """Unity's Addressables catalog against the bundles beside it. The catalog names every bundle
+    the game will ask for, so what is not in the folder is what it cannot load, and the names say
+    which part of the game never arrived."""
+    for catalog in sorted(Path(folder).glob("*_Data/StreamingAssets/aa/catalog.json")):
+        try:
+            data = json.loads(catalog.read_text(encoding="utf-8", errors="replace"))
+        except (OSError, ValueError):
+            continue
+        ids = data.get("m_InternalIds")
+        if not isinstance(ids, list):
+            continue
+        named = set()
+        for item in ids:
+            if isinstance(item, str):
+                name = item.replace("\\", "/").rsplit("/", 1)[-1]
+                if name.endswith(".bundle"):
+                    named.add(name)
+        bundles = catalog.parent / "StandaloneWindows64"
+        try:
+            present = {entry.name for entry in bundles.iterdir()}
+        except OSError:
+            present = set()
+        missing = sorted(named - present)
+        if not named or not missing:
+            continue
+        groups = {}
+        for name in missing:
+            key = "_".join(BUNDLE_TAIL.sub("", name).split("_")[:2]).strip("_") or name
+            groups[key] = groups.get(key, 0) + 1
+        top = sorted(groups.items(), key=lambda pair: (-pair[1], pair[0]))[:6]
+        return len(missing), len(named), bundles.name, ["%s x%d" % (key, count) for key, count in top]
+    return None
+
+
+def content_report(env, app_id, path, budget=MEASURE_SECONDS):
+    """What the folder holds against what its own record says it should. A game whose files are not
+    all there stops the moment it loads one of them, and Steam never repairs this by itself: the
+    manifest it reads is the one the copied install brought with it."""
+    lines = []
+    short = ""
+    root = Path(path) if path else None
+    if root is not None and root.is_dir():
+        text = manifest_for(env, app_id)
+        expected = ACF_SIZE.search(text)
+        if expected:
+            build = ACF_BUILD.search(text)
+            expected_bytes = int(expected.group(1))
+            total, files, capped = measure(root, budget=budget)
+            lines.append("content: the manifest%s records %d bytes; the folder holds %d in %d files%s"
+                         % (" of build %s" % build.group(1) if build else "", expected_bytes, total, files,
+                            " (counting stopped at %d files)" % files if capped else ""))
+            if not capped and expected_bytes - total > SHORT_BYTES and total < expected_bytes * SHORT_TOLERANCE:
+                lines.append("content: %s of it is not there, and Steam will not ask for it: the manifest "
+                             "is the copied install's own, and it records that build as installed"
+                             % sizeof(expected_bytes - total))
+                short = "%s of its %s install is not there" % (sizeof(expected_bytes - total), sizeof(expected_bytes))
+        found = bundles_missing(root)
+        if found:
+            missing, named, folder_name, groups = found
+            lines.append("addressables: the game's own catalog names %d bundles; %d of them are not in %s (%s)"
+                         % (named, missing, folder_name, ", ".join(groups)))
+            short = ("%s, and " % short if short else "") + \
+                "%d of the %d bundles the game's own catalog names are missing" % (missing, named)
+    return lines, short
+
+
 def install_report(env, exe):
     """The game's own folder as this launch finds it: what Steam put there, and anything a repack
     left beside it. Every launch keeps one with the session's artifacts, because a game that closes
     right away is often a game whose folder was written by something other than Steam - the crack's
     steamclient64.dll shadows the client library Proton provides, and SteamAPI_Init is then the last
     thing the game does before it exits."""
-    path = env.get("STEAM_COMPAT_INSTALL_PATH") or (os.path.dirname(exe) if exe else "")
+    path = install_path(env, exe)
     lines = ["install: " + (path or "-")]
     if not path:
         return lines
@@ -545,20 +694,25 @@ def install_report(env, exe):
     return lines
 
 
-def keep_artifacts(log, env, exe):
+def keep_artifacts(log, env, exe, budget=MEASURE_SECONDS):
     """Keeps what a launch left behind with the session's artifacts: the game's own logs and dumps,
-    Proton's log, and a listing of its folder as the launch found it."""
+    Proton's log, and a listing of its folder as the launch found it. Returns what the folder is
+    short of, when it is short of anything."""
     if log.folder is None:
-        return
+        return ""
     pfx = os.path.join(env.get("STEAM_COMPAT_DATA_PATH", "").rstrip("/"), "pfx")
     kept = keep_files(log.folder, log.app_id, prefix_files(pfx))
     kept += keep_files(log.folder, log.app_id, proton_logs(log.app_id), cap=PROTON_LOG_CAP)
     for source, name, size in kept:
         log.note("droiddeck-game-env: kept %s (%d bytes) as %s" % (source, size, name))
+    path = install_path(env, exe)
+    content, short = content_report(env, log.app_id, path, budget)
     try:
-        (log.folder / (log.app_id + "-install.txt")).write_text("\n".join(install_report(env, exe)) + "\n", encoding="utf-8")
+        (log.folder / (log.app_id + "-install.txt")).write_text(
+            "\n".join(install_report(env, exe) + content) + "\n", encoding="utf-8")
     except OSError:
         pass
+    return short
 
 
 def start(launch, env):
@@ -693,8 +847,13 @@ def main():
         record_stock(sync, launch, launch_env)
         child = start(launch, launch_env)
     status = follow(child, log)
-    log.stopped(status, time.monotonic() - began)
-    keep_artifacts(log, launch_env, exe)
+    seconds = time.monotonic() - began
+    log.stopped(status, seconds)
+    budget = MEASURE_SECONDS if seconds < QUICK_STOP else MEASURE_SECONDS_QUIET
+    short = keep_artifacts(log, launch_env, exe, budget)
+    if short and seconds < QUICK_STOP:
+        log.record("droiddeck-game-env: app %s stopped after %.1f s, and %s - a launch cannot get past files "
+                   "that are not there (see games/%s-install.txt)" % (log.app_id, seconds, short, log.app_id))
     return status if status >= 0 else 128 - status
 
 

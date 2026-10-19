@@ -166,6 +166,15 @@ listing of the game's own folder is kept with them as
 repack's copies are patched and unsigned, and their `steamclient64.dll` shadows
 the client library Proton provides.
 
+The same report answers the other way a game cannot start: a copied install
+brings the manifest of the machine it came from, so Steam records the whole
+build as installed and never asks for the part that never arrived. The folder's
+own size is read against its manifest's depot record, and a Unity game's own
+Addressables catalog is read against the bundles beside it, naming how many are
+missing and which parts of the game they belong to. A game that stops within a
+minute while its folder is short says so in its launch log as well, because
+nothing it prints can explain a load of a file that is not there.
+
 Per-game values are also read by the launcher itself for the DirectAudio switch
 and by `droiddeck-game-env` for the sync switch, so both work without any client
 change; the editor only writes the snapshot.
