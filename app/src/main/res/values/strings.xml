@@ -83,6 +83,10 @@
     <string name="game_env_dxvk_config">DXVK settings separated by semicolons. Recent builds use dxvk.maxFrameRate for frame limiting; prefer the session frame limiter for ordinary play.</string>
     <string name="game_env_vkd3d_limit">D3D12 frame-rate limit. 0 disables the limit.</string>
     <string name="game_env_glthread">Mesa OpenGL threading. true can help CPU-limited OpenGL games; test per game.</string>
+    <string name="game_env_switch_sync">Set to off to launch this game on stock Proton, without DroidDeck\'s sync libraries. For a game that closes at once, hangs, or crashes during startup with them.</string>
+    <string name="game_env_switch_audio">Set to off to keep DirectAudio out of this game and use Proton\'s own audio instead.</string>
+    <string name="game_env_switch_verbose">Set to 1 to have Proton keep a log of this game\'s launch, kept with the session\'s logs. It slows the game down; use it to diagnose a launch.</string>
+    <string name="game_env_switch_reset_prefix">Set to 1 to recreate this game\'s Proton prefix before the next launch. The setting clears itself once the prefix has been recreated; installed components, saves outside the prefix and the game\'s files are untouched.</string>
     <string name="sync_backend_title">Wine sync</string>
     <string name="sync_backend_hint">How games keep their threads in step. Applies next session.</string>
     <string name="sync_backend_esync">esync</string>

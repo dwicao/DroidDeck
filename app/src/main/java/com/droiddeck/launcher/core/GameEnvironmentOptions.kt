@@ -35,6 +35,10 @@ object GameEnvironmentOptions {
         Option("WINE_LARGE_ADDRESS_AWARE", "0", 0, Type.TOGGLE, listOf("0", "1")),
         Option("WINEDLLOVERRIDES", "", 0, Type.TEXT),
         Option("GALLIUM_HUD", "simple", 0, Type.MULTIPLE, listOf("simple", "fps", "frametime")),
+        Option("DROIDDECK_SYNC", "off", R.string.game_env_switch_sync, Type.CHOICE, listOf("off")),
+        Option("DROIDDECK_AUDIO", "off", R.string.game_env_switch_audio, Type.CHOICE, listOf("off")),
+        Option("DROIDDECK_VERBOSE", "1", R.string.game_env_switch_verbose, Type.TOGGLE, listOf("0", "1")),
+        Option("DROIDDECK_RESET_PREFIX", "1", R.string.game_env_switch_reset_prefix, Type.TOGGLE, listOf("0", "1")),
     )
 
     fun find(name: String): Option? = all.firstOrNull { it.name == name }

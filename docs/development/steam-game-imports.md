@@ -54,6 +54,15 @@ a lookup; the ownership probe still decides. Every decision the importer makes i
 `~/.local/share/droiddeck-games/status.json` and copied into the session's log bundle with
 the imported manifests under `steamapps/`.
 
+The importer's folder markers are hints, not a verdict: a repack that ships a Steamworks
+emulator alongside a genuine Steam install, or a genuinely cracked copy of an owned game,
+would be identified the same way. What a launch makes of the folder is recorded for each
+launch instead, as `games/<app id>-install.txt` beside the session's other logs
+(see [game-environment.md](game-environment.md)). It lists the folder, the emulator files
+present in it, and whether its Steam client libraries carry an Authenticode signature -
+Valve's do, and a repack's patched copies do not - which tells a shadowing
+`steamclient64.dll` from the client library Proton provides.
+
 The account's `.droiddeck-routes.json` maps shortcut IDs to real Steam app IDs so the
 Android launcher uses the same title and Proton prefix as Steam. Other accounts do not
 inherit those routes. Managed shortcuts are replaced; user-created shortcuts and

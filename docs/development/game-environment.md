@@ -81,7 +81,7 @@ requires. A Steam or desktop session installs DXVK 2.7.1 into any Proton whose
 DXVK is still the copy that Proton shipped, including after a Proton update put
 that copy back. A DXVK package chosen in Components stays for that Proton build.
 
-The variable-name picker offers 24 predefined variables and a Custom entry. Like
+The variable-name picker offers 32 predefined variables and a Custom entry. Like
 WinNative, known variables use toggles, value dropdowns, multi-select lists, or
 numeric/text fields. Feature-level and shader-model dropdowns also accept custom
 values. Custom variables have editable names and literal values.
@@ -98,6 +98,10 @@ values. Custom variables have editable names and literal values.
 | `DXVK_HUD`, `PROTON_LOG` | Optional diagnostics; leave unset for ordinary play. |
 | `PROTON_USE_WINED3D` | D3D9–11 OpenGL fallback for compatibility testing. |
 | `PROTON_USE_XALIA` | Proton's gamepad-navigation helper toggle. |
+| `DROIDDECK_SYNC` | `off` launches this game on stock Proton, without DroidDeck's sync libraries. |
+| `DROIDDECK_AUDIO` | `off` keeps DirectAudio out of this game's prefix and uses Proton's own audio. |
+| `DROIDDECK_VERBOSE` | `1` has Proton keep a log of this game's launch with the session's logs. |
+| `DROIDDECK_RESET_PREFIX` | `1` recreates this game's Proton prefix before the next launch, once. |
 
 Forcing `12_2` or `6_9` changes reported capabilities; it cannot implement a missing
 Vulkan feature. Remove either entry to use automatic detection for that capability.
@@ -121,11 +125,50 @@ Windows/Wine graphics helper also maps the selected feature level to
 DroidDeck instead publishes an atomic JSON snapshot at
 `/root/.config/droiddeck/game-environment.json`. Both its Valve ARM64 Proton
 wrapper and adopted third-party Proton wrappers execute `droiddeck-game-env`,
-which reads that snapshot for each real game launch and uses `execvpe` to start
-Proton. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malformed
+which reads that snapshot for each real game launch and starts Proton as its own
+child. Probe prefix `compatdata/0` and non-launch verbs are unchanged. Malformed
 configuration falls back to the inherited environment without evaluating its
 contents. Both component and environment selection normalize signed non-Steam
 prefix IDs to unsigned IDs.
+
+Because the engine keeps Proton as a child rather than replacing itself with it,
+it can see the launch through: it copies the game's and Wine's output into the
+session log and into `games/<app id>.log`, records the exit status and how long
+the game lasted, and passes a stop on to the game. A game that closes in seconds
+therefore leaves its reason behind - Wine's `err:module` line for a library it
+could not load, `err:seh` for a fault, Unity's own log, or Proton's log when
+`DROIDDECK_VERBOSE=1` is set. Games always launch with
+`WINEDEBUG=-all,+seh,+module` for those two error classes unless the game, the
+shared profile or the launch environment already sets `WINEDEBUG`.
+
+A stop from the client is forwarded to the game, and the session waits only for
+the game's own process: output that a leftover process still holds open cannot
+keep the client waiting after the game has ended.
+
+The switches reach the launcher through `/usr/local/bin/droiddeck-game-setting`,
+which reads the same snapshot for the app the prefix belongs to.
+`DROIDDECK_SYNC=off` also ends a Wine server still running for that prefix, since
+a server left from the previous launch is reused whichever binaries the next
+launch names. `DROIDDECK_AUDIO=off` removes the driver from the prefix's own
+`Drivers` registry key, where DirectAudio pins itself, so Proton's own audio
+applies whether or not the registry entry was written earlier. Both are decided
+before Proton starts, the prefix reset by deleting `pfx` and `version` and then
+clearing itself from the app's settings.
+
+After the launch, the session keeps the game's own diagnostic files beside the
+session's other logs: `Player.log`, `Player-prev.log`, `output_log.txt`, crash
+dumps under `LocalLow` and the user's `Temp`, and Proton's log when it was asked
+for. Each is kept as its last megabyte (Proton's as the last four) with at most
+sixteen files per launch, so a large log cannot fill the session's artifacts. A
+listing of the game's own folder is kept with them as
+`games/<app id>-install.txt`, including any Steamworks emulator files and whether
+`steam_api64.dll` and `steamclient64.dll` carry an Authenticode signature: a
+repack's copies are patched and unsigned, and their `steamclient64.dll` shadows
+the client library Proton provides.
+
+Per-game values are also read by the launcher itself for the DirectAudio switch
+and by `droiddeck-game-env` for the sync switch, so both work without any client
+change; the editor only writes the snapshot.
 
 The published file also carries generated `dxvkConfig` and `dxvkConfigGames`
 values the app's own file never has. The session menu's texture filtering

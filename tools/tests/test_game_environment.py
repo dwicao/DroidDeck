@@ -961,3 +961,270 @@ class ForceSsbsTest(unittest.TestCase):
                 self.assertEqual(MODULE["force_ssbs"]([str(x86 / "proton")], on), on)
             finally:
                 g["SSBS_LIB"] = old
+
+
+def pe_file(signature=b""):
+    """A PE file with a certificate table when one is asked for, which is everything signature()
+    reads out of a Steam client library."""
+    optional = bytearray(240)
+    optional[0:2] = (0x20B).to_bytes(2, "little")
+    optional[148:152] = len(signature).to_bytes(4, "little")
+    coff = bytearray(20)
+    coff[16:18] = len(optional).to_bytes(2, "little")
+    return b"MZ" + bytes(0x3A) + (0x40).to_bytes(4, "little") + b"PE\x00\x00" + bytes(coff) + bytes(optional) + signature
+
+
+class GameLaunchTest(unittest.TestCase):
+    """What a game's own launch leaves behind: the reason it stopped, kept by app."""
+
+    def probe(self, home, body):
+        script = home / "probe"
+        script.write_text("#!" + sys.executable + "\n" + body)
+        script.chmod(0o755)
+        return script
+
+    def run_game(self, home, script, **extra):
+        prefix = Path(home) / "compatdata/42"
+        (prefix / "pfx").mkdir(parents=True, exist_ok=True)
+        env = dict(os.environ, HOME=str(home), STEAM_COMPAT_DATA_PATH=str(prefix),
+                   BL_DEBUG_DIR=str(Path(home) / "logs/2026-10-19-05-steam"), **extra)
+        return subprocess.run([sys.executable, str(BIN / "droiddeck-game-env"), str(script), "waitforexitandrun"],
+                              env=env, text=True, capture_output=True)
+
+    def test_a_game_runs_with_crash_and_module_messages_and_a_per_game_value_wins(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            script = self.probe(home, "import os\nprint(os.environ.get('WINEDEBUG', 'unset'))\n")
+            self.assertEqual(self.run_game(home, script).stdout.strip(), "-all,+seh,+module")
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "games": {"42": {"WINEDEBUG": "-all,+loaddll"}}}))
+            self.assertEqual(self.run_game(home, script).stdout.strip(), "-all,+loaddll")
+
+    def test_a_game_that_stops_is_timed_named_and_kept_with_its_own_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            script = self.probe(home, "import sys\nprint('musedash says so')\nprint('err:seh:setup_exception', file=sys.stderr)\nsys.exit(7)\n")
+            result = self.run_game(home, script)
+            self.assertEqual(result.returncode, 7)
+            self.assertEqual(result.stdout, "musedash says so\n")
+            self.assertIn("err:seh:setup_exception", result.stderr)
+            self.assertIn("stopped after", result.stderr)
+            log = (home / "logs/2026-10-19-05-steam/games/42.log").read_text()
+            self.assertIn("musedash says so", log)
+            self.assertIn("err:seh:setup_exception", log)
+            self.assertIn("stopped after", log)
+            self.assertIn("exit code 7", log)
+            self.assertIn("WINEDEBUG=-all,+seh,+module", log)
+
+    def test_sync_off_runs_the_stock_launch_and_leaves_the_pack_selector_alone(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            script = self.probe(home, "import sys\nsys.exit(0)\n")
+            config = home / ".config/droiddeck/game-environment.json"
+            config.parent.mkdir(parents=True)
+            config.write_text(json.dumps({"version": 1, "games": {"42": {"DROIDDECK_SYNC": "off"}}}))
+            calls, notes = [], []
+            g = MODULE["pick_launch"].__globals__
+            old = g["select_sync"]
+            g["select_sync"] = lambda command, env, sync=None: (calls.append(list(command)) or
+                                                               (["/pack/proton"] + list(command[1:]), env))
+            try:
+                launch, launch_env, chosen = g["pick_launch"](
+                    ["/proton", "waitforexitandrun", "/game/Game.exe"],
+                    {"DROIDDECK_SYNC": "off", "STEAM_COMPAT_DATA_PATH": "/x/compatdata/42"}, None, notes.append)
+            finally:
+                g["select_sync"] = old
+            self.assertIn("sync off for this game", "\n".join(notes))
+            self.assertEqual(calls, [])
+            self.assertEqual(launch, ["/proton", "waitforexitandrun", "/game/Game.exe"])
+            self.assertIsNone(chosen)
+            result = self.run_game(home, script)
+            self.assertIn("sync off for this game", result.stderr)
+            self.assertIn("sync off for this game", (home / "logs/2026-10-19-05-steam/games/42.log").read_text())
+
+    def test_the_games_own_logs_and_dumps_are_kept_with_the_sessions_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            user = root / "pfx/drive_c/users/steamuser"
+            for path in ("AppData/LocalLow/Studio/Game/Player.log",
+                         "AppData/LocalLow/Studio/Game/Crashes/error.log",
+                         "AppData/Local/Temp/long.dmp",
+                         "AppData/Local/Temp/plain.log"):
+                target = user / path
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(b"x" * (4 * 1024 * 1024) if target.name == "long.dmp" else b"player became unresponsive")
+            found = MODULE["prefix_files"](str(root / "pfx"))
+            self.assertEqual(sorted(path.name for path in found), ["Player.log", "error.log", "long.dmp"])
+            kept = MODULE["keep_files"](root, "42", found, cap=1024)
+            self.assertEqual(sorted(name for _, name, _ in kept),
+                             ["42-error.log", "42-long.dmp", "42-player.log"])
+            self.assertIn(b"older output dropped", (root / "42-long.dmp").read_bytes())
+            self.assertLessEqual((root / "42-long.dmp").stat().st_size, 1024 + 64)
+
+    def test_an_install_folder_is_listed_with_its_emulator_files_and_library_signatures(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            install = root / "Muse Dash"
+            (install / "musedash_Data").mkdir(parents=True)
+            (install / "MuseDash.exe").write_bytes(b"MZ")
+            (install / "steamclient64.dll").write_bytes(pe_file())
+            (install / "steamclient_loader.exe").write_bytes(b"MZ")
+            (install / "steam_api64.dll").write_bytes(pe_file())
+            (install / "steam_api.dll").write_bytes(pe_file(b"\x00" * 128))
+            report = "\n".join(MODULE["install_report"]({"STEAM_COMPAT_INSTALL_PATH": str(install)}, ""))
+            self.assertIn("steam emulator files: steamclient64.dll, steamclient_loader.exe", report)
+            self.assertIn("steam_api64.dll: unsigned", report)
+            self.assertIn("steam_api.dll: signed", report)
+            self.assertIn("musedash_Data", report)
+
+    def test_a_proton_log_and_an_install_listing_are_kept_after_the_launch(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            home = Path(tmp)
+            debug = home / "logs/2026-10-19-05-steam"
+            debug.mkdir(parents=True)
+            (home / "steam-42.log").write_text("wine: err:module:import_dll Library vcruntime140_1.dll not found\n")
+            install = home / "Muse Dash"
+            install.mkdir()
+            (install / "steam_appid.txt").write_text("774171")
+            script = self.probe(home, "import sys\nsys.exit(0)\n")
+            result = self.run_game(home, script, STEAM_COMPAT_INSTALL_PATH=str(install))
+            self.assertIn("kept", result.stderr)
+            self.assertIn("import_dll", (debug / "games/42-steam-42.log").read_text())
+            listing = (debug / "games/42-install.txt").read_text()
+            self.assertIn("steam emulator files: steam_appid.txt", listing)
+
+
+class GameSettingsTest(unittest.TestCase):
+    """The per-game switches the app writes, read by the launcher that has to act on them."""
+
+    SETUPS = None
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.home = Path(self.tmp.name)
+        self.prefix = self.home / "compatdata/42"
+        (self.prefix / "pfx").mkdir(parents=True)
+        self.config = self.home / ".config/droiddeck/game-environment.json"
+        self.config.parent.mkdir(parents=True)
+        self.write_config({
+            "version": 1,
+            "dxvkConfig": {"42": "dxvk.conf"},
+            "shared": {"FEX_MULTIBLOCK": "0", "DROIDDECK_SYNC": "auto"},
+            "games": {"42": {"DROIDDECK_SYNC": "off", "DROIDDECK_RESET_PREFIX": "1", "DROIDDECK_VERBOSE": "1",
+                             "DROIDDECK_AUDIO": "off"}, "43": {}},
+        })
+        self.settings = json.loads(self.config.read_text())
+
+    def write_config(self, value):
+        self.config.write_text(json.dumps(value))
+        self.settings = value
+
+    def helper(self, *args):
+        return subprocess.run([sys.executable, str(BIN / "droiddeck-game-setting"), *args],
+                              env=dict(os.environ, HOME=str(self.home)), text=True, capture_output=True)
+
+    def launcher(self, body, **extra):
+        setups = COMPAT["BL_SWITCHES_SETUP"] + COMPAT["BL_DIRECTAUDIO_SETUP"]
+        env = dict(os.environ, HOME=str(self.home), BL_GAME_SETTING=str(BIN / "droiddeck-game-setting"),
+                   STEAM_COMPAT_DATA_PATH=str(self.prefix))
+        env.update(extra)
+        return subprocess.run(["bash", "-c", "set -u\n" + setups + body], env=env, text=True, capture_output=True)
+
+    def test_the_helper_reads_the_games_value_over_the_shared_one_and_clears_one_entry(self):
+        self.assertEqual(self.helper("42", "DROIDDECK_SYNC").stdout.strip(), "off")
+        self.assertEqual(self.helper("43", "DROIDDECK_SYNC").stdout.strip(), "auto")
+        self.assertEqual(self.helper("42", "FEX_MULTIBLOCK").stdout.strip(), "0")
+        self.assertEqual(self.helper("42", "NOT_SET").returncode, 1)
+        self.assertEqual(self.helper("--unset", "42", "DROIDDECK_VERBOSE").returncode, 0)
+        kept = json.loads(self.config.read_text())
+        self.assertEqual(kept["dxvkConfig"], {"42": "dxvk.conf"})
+        self.assertEqual(kept["games"]["42"],
+                         {"DROIDDECK_SYNC": "off", "DROIDDECK_RESET_PREFIX": "1", "DROIDDECK_AUDIO": "off"})
+        self.assertEqual(kept["games"]["43"], {})
+        self.assertEqual(self.helper("--unset", "42", "DROIDDECK_VERBOSE").returncode, 1)
+
+    def test_the_launcher_reads_a_games_switches_and_never_the_tools_prefix(self):
+        read = 'bl_app_id; bl_game_setting DROIDDECK_SYNC; printf "%s|%s\\n" "$BL_APP" "$BL_SETTING"\n'
+        self.assertEqual(self.launcher(read).stdout.strip(), "42|off")
+        tools = self.launcher(read, STEAM_COMPAT_DATA_PATH=str(self.home / "compatdata/0"))
+        self.assertEqual(tools.stdout.strip(), "|")
+        self.assertEqual(tools.returncode, 0)
+
+    def test_recreating_a_prefix_and_asking_for_a_log_happen_before_anything_else(self):
+        (self.prefix / "pfx/marker").write_text("x")
+        (self.prefix / "version").write_text("1 experimental")
+        result = self.launcher('bl_game_switches\nprintf "%s|%s\\n" "${PROTON_LOG:-}" "$(test -e "$STEAM_COMPAT_DATA_PATH/pfx" && echo there || echo gone)"\n',
+                               verb="waitforexitandrun")
+        self.assertEqual(result.stdout.strip(), "1|gone")
+        self.assertIn("recreating the prefix for app 42", result.stderr)
+        self.assertFalse((self.prefix / "version").exists())
+        kept = json.loads(self.config.read_text())
+        self.assertNotIn("DROIDDECK_RESET_PREFIX", kept["games"]["42"])
+        self.assertEqual(kept["games"]["42"]["DROIDDECK_VERBOSE"], "1")
+
+    def test_the_game_that_asks_for_no_directaudio_gets_the_driver_out_of_its_prefix(self):
+        self.settings["games"]["42"].pop("DROIDDECK_RESET_PREFIX", None)
+        self.write_config(self.settings)
+        (self.prefix / "pfx/user.reg").write_text(
+            '[Software\\\\Wine\\\\Drivers] 1700000000\n"Audio"="directaudio,pulse"\n"Other"="kept"\n\n'
+            '[Software\\\\Wine\\\\Something]\n"Audio"="directaudio,pulse"\n')
+        depot = self.depot()
+        body = 'bl_game_switches\nbl_directaudio "DEPOT"\nprintf "%s\\n" "${WINE_AUDIO_DRIVER:-unset}"\n'
+        result = self.launcher(body.replace("DEPOT", str(depot)),
+                               verb="waitforexitandrun", BL_DIRECTAUDIO=str(self.home / "directaudio"))
+        self.assertEqual(result.stdout.strip(), "unset")
+        self.assertIn("DirectAudio off", result.stderr)
+        self.assertIn("DirectAudio taken back out", result.stderr)
+        self.assertEqual((self.prefix / "pfx/user.reg").read_text(),
+                         '[Software\\\\Wine\\\\Drivers] 1700000000\n"Other"="kept"\n\n'
+                         '[Software\\\\Wine\\\\Something]\n"Audio"="directaudio,pulse"\n')
+
+    def test_directaudio_is_still_placed_when_the_game_does_not_ask_for_it(self):
+        game = self.settings["games"]["42"]
+        del game["DROIDDECK_AUDIO"]
+        self.write_config(self.settings)
+        (self.prefix / "pfx/user.reg").write_text('[Software\\\\Wine\\\\Drivers] 1\n"Audio"="directaudio,pulse"\n')
+        depot = self.depot()
+        body = 'bl_game_switches\nbl_directaudio "DEPOT"\nprintf "%s|%s\\n" "${WINE_AUDIO_DRIVER:-unset}" "${WINEDLLPATH:-none}"\n'
+        result = self.launcher(body.replace("DEPOT", str(depot)),
+                               verb="waitforexitandrun", BL_DIRECTAUDIO=str(self.home / "directaudio"))
+        self.assertEqual(result.stdout.strip(), "directaudio,pulse|%s/lib/wine" % (self.home / "directaudio/linux-wine11"))
+        self.assertNotIn("taken back out", result.stderr)
+
+    def depot(self):
+        da = self.home / "directaudio/linux-wine11"
+        (da / "lib/wine").mkdir(parents=True, exist_ok=True)
+        depot = self.home / "Proton Experimental (ARM64)"
+        for path in ("files/bin-arm64/wine", "files/lib/wine/aarch64-unix/winepulse.so", "files/bin/wineserver"):
+            (depot / path).parent.mkdir(parents=True, exist_ok=True)
+            (depot / path).write_bytes(b"#!/bin/sh\necho wine-11.0\n")
+        (depot / "files/bin-arm64/wine").chmod(0o755)
+        return depot
+
+
+class LauncherSwitchWiringTest(unittest.TestCase):
+    """Both generated launchers have to read the per-game switches, and both have to be valid bash."""
+
+    def wrapper_body(self):
+        return (COMPAT["EXTRA_WRAPPER_SH"] % "proton").replace(
+            'here=$(dirname "$0")',
+            'here=$(dirname "$0")\n' + COMPAT["BL_SWITCHES_SETUP"] + COMPAT["BL_DIRECTAUDIO_SETUP"] + COMPAT["BL_GAME_CPUS_SETUP"]
+            + COMPAT["BL_IDTECH3_SETUP"] + COMPAT["BL_COMPONENTS_SETUP"] + COMPAT["BL_LIBPATH_SETUP"] + COMPAT["BL_STORE_SETUP"], 1)
+
+    def test_both_launchers_read_the_per_game_switches_they_are_asked_for(self):
+        for script in (COMPAT["launcher_sh"](), self.wrapper_body()):
+            self.assertIn("bl_game_switches", script)
+            self.assertLess(script.index("bl_game_switches"), script.index('bl_components "'))
+            self.assertIn("droiddeck-game-setting", script)
+            self.assertIn("DROIDDECK_AUDIO", script)
+            self.assertIn("DROIDDECK_RESET_PREFIX", script)
+
+    def test_both_generated_launchers_are_valid_bash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, script in (("launcher", COMPAT["launcher_sh"]()), ("wrapper", self.wrapper_body())):
+                path = Path(tmp) / name
+                path.write_text(script)
+                result = subprocess.run(["bash", "-n", str(path)], capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, "%s: %s" % (name, result.stderr))

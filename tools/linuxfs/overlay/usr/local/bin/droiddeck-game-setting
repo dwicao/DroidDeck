@@ -1,0 +1,97 @@
+#!/usr/bin/python3
+"""One per-game setting out of the session's environment file, for the shell launcher.
+
+The compatibility tool's launcher is bash, and it decides things before the game's environment
+reaches a program that could read it - whether DirectAudio is placed in the prefix, whether the
+prefix is thrown away first, whether Proton is asked to log. Those decisions are per game, and the
+file the app writes them into is JSON; this is the one place that reads it for them.
+
+    droiddeck-game-setting <scope> <NAME>            value on stdout, exit 1 when unset
+    droiddeck-game-setting --unset <scope> <NAME>    drop the game's own entry, exit 1 when absent
+"""
+import json
+import os
+import re
+import sys
+from pathlib import Path
+
+CONFIG = Path.home() / ".config/droiddeck/game-environment.json"
+SCOPE = re.compile(r"[1-9][0-9]*")
+NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def load():
+    try:
+        with CONFIG.open(encoding="utf-8") as source:
+            config = json.load(source)
+    except (OSError, ValueError):
+        return None
+    if not isinstance(config, dict) or config.get("version") != 1:
+        return None
+    return config
+
+
+def entries(config, scope):
+    games = config.get("games")
+    if not isinstance(games, dict):
+        return None
+    found = games.get(scope)
+    if found is None:
+        return {}
+    return found if isinstance(found, dict) else None
+
+
+def effective(config, scope, name):
+    """The game's own entry first, then the shared one, as the game's launch applies them: an entry
+    that is not a string (null in the file) is that name taken away, not inherited."""
+    game = entries(config, scope) or {}
+    if name in game:
+        return game[name] if isinstance(game[name], str) else None
+    shared = config.get("shared")
+    value = shared.get(name) if isinstance(shared, dict) else None
+    return value if isinstance(value, str) else None
+
+
+def unset(scope, name):
+    config = load()
+    if config is None:
+        return 1
+    found = entries(config, scope)
+    if found is None or name not in found:
+        return 1
+    del found[name]
+    games = config["games"]
+    if found:
+        games[scope] = found
+    else:
+        games.pop(scope, None)
+    staged = CONFIG.with_name(CONFIG.name + ".staged")
+    try:
+        staged.write_text(json.dumps(config, indent=2) + "\n", encoding="utf-8")
+        os.replace(staged, CONFIG)
+    except OSError:
+        staged.unlink(missing_ok=True)
+        return 1
+    return 0
+
+
+def main(argv):
+    if argv[:1] == ["--unset"]:
+        argv = argv[1:]
+        if len(argv) != 2 or not SCOPE.fullmatch(argv[0]) or not NAME.fullmatch(argv[1]):
+            return 2
+        return unset(argv[0], argv[1])
+    if len(argv) != 2 or not SCOPE.fullmatch(argv[0]) or not NAME.fullmatch(argv[1]):
+        return 2
+    config = load()
+    if config is None:
+        return 1
+    value = effective(config, argv[0], argv[1])
+    if value is None or not value:
+        return 1
+    print(value)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))
