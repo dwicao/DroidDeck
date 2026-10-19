@@ -190,7 +190,10 @@ A saved `gameCpus` value still wins, so anyone who chose their own list keeps it
 5. If none of that moved, the drop is in the guest (its own load) or in the host's compositor —
    compare against the compositor's `perf:` line in the same `session.log`.
 6. `device.txt`: `Session pacing` and `Pacing note` say what the session asked for and where that
-   cannot land on the panel; `Session display` says which display, at which rate, with which modes.
+   cannot land on the panel; `Session display` says which display, at which rate, with which modes;
+   `GPU clock` puts the clock beside the ceiling the platform allowed (`475 of 719 MHz (platform
+   level 4 caps it at 475 MHz)`), and `GPU clock pin` says which lever held it and whether the level
+   node refused the write.
 
 ## What 0.4.9 changed
 
@@ -247,18 +250,103 @@ warned that in DeX these callbacks come from the phone's display. The session ra
 external display reported at 75 Hz, and the phone's panel is 60 Hz. The rate a report should be read
 for is `Session refresh` / `Session display`, not the vsync average.
 
+## What 0.4.10 changed
+
+### A repeated hold is a no-op; the clock has to be taken back
+
+The 0.4.9 session (2026-10-19 20:56, NSUNS4 at 960x540 on a 1920x1080 external display, 75 Hz) put
+the ceiling and the clock in the same table and the gap in it was the interesting part:
+
+```
+t_s    gpu  max  level  thermal
+151.7  719  719    0    light
+153.7  295  295    7    light   <- the platform clamps
+178.1  475  719    0    light   <- the platform lifts the clamp, the clock stays at 475
+186.1  295  295    7    moderate
+188.2  348  348    6    moderate  <- the clock follows every later cap
+232.8  475  475    4    moderate
+```
+
+In 229 of 233 rows `gpu_mhz` equalled `gpu_max_mhz`: the hold was taking the ceiling the platform
+allowed. In the four rows at 178–184 s it did not, and that is the case the user reads as "475 even
+though it is allowed 719".
+
+The clamp moves the clock down to the level the platform allows. Lifting the clamp moves the
+*ceiling*, not the clock: with `KGSL_PROP_PWRCTRL=0` the governor is off, and repeating the same
+value is a no-op to the driver — it only acts when the value changes. So the clock sat at the floor
+(475) while the ceiling was back at 719.
+
+0.4.10 gives `GpuClockPin.reassert` a `force` that cycles the switch (`1` then `0`) when
+`ThrottleWatch` sees the clock below the ceiling. On the device both ioctls return 0, and the cycle
+is what moves the clock: at idle `PWRCTRL=1` leaves 475 MHz, `PWRCTRL=0` takes 719 MHz within a
+second. A gap that will not close is retried with the six-second re-asserts rather than every
+sample, because the cycle enables the governor for the width of two ioctls.
+
+The HUD and the report show the pair, so the gap is visible while it lasts: `gpu 475/719 MHz` on the
+panel, and `GPU clock 475 of 719 MHz (below the ceiling 719 MHz)` in the report.
+
+### The ceiling cannot be lifted by an ioctl, and that is now sourced
+
+The kernel this device runs (msm-5.15, `kgsl_pwrctrl.c`) clamps every level request in
+`_adjust_pwrlevel()`:
+
+```c
+unsigned int max_pwrlevel = max_t(unsigned int, pwr->thermal_pwrlevel, pwr->max_pwrlevel);
+...
+case KGSL_CONSTRAINT_PWR_MAX:
+    return max_pwrlevel;       /* the fastest the platform allows */
+```
+
+`kgsl_pwrctrl_set_constraint()` — the path `KGSL_PROP_PWR_CONSTRAINT` (0x12) takes — goes through
+that clamp, so a constraint can never produce a level faster than `thermal_pwrlevel`. The earlier
+note here said the property was left unused because its payload was undocumented; the reason is now
+sharper: it is documented, and it cannot do what the pin is asked to do.
+
+`thermal_pwrlevel` is the lever that *would* lift it, and on this stock build it is `644 root`; the
+write is refused with `Permission denied`, which 0.4.10 now carries into the report
+(`GPU clock pin ...; the level node refused: Permission denied`). On a rooted build the existing
+write path would hold level 0, and the re-assert would keep putting it back.
+
+The levels on this device: `719 680 615 550 475 401 348 295 220 124` MHz; the 0.4.9 session ran
+0 → 7 (295), then 7 → 6 → 5 → 4 as the device cooled from 69 to 59 °C. The thermal status moved
+*after* the caps both times, so the caps are the platform's sustained budget, not a reaction to the
+status the framework reports.
+
+### The report's pacing block is written again at the end
+
+The block 0.4.9 appended could be missing from a report: the activity's first `notePacing` can run
+before the session folder exists (the report is written over it), and the memo that kept the log line
+quiet also kept every later write quiet. 0.4.10 writes the block on every note — the file keeps only
+the last one, cut at its `-- session pacing …` marker — and once more from `stopSession`, so the
+numbers are the ones the session ended at, with the GPU clock read at that moment.
+
+### What would actually give 719 on this phone
+
+Measured, in the order they are worth trying:
+
+- Root: the write path already exists and is re-asserted; level 0 is 719 MHz.
+- Cooling: the platform handed back 295 → 348 → 401 → 475 as the SoC cooled; a cooler phone is a
+  higher ceiling. The 0.4.9 session ended with the battery at 36 °C and "not charging, USB" at 79%.
+- A charger that can carry the session: "not charging" while plugged means the phone is running off
+  the pack; a PD source with headroom is one less budget the platform has to keep.
+- Samsung's Game Booster priority mode for the app. The framework reported `Game Mode STANDARD`, and
+  `GameManager.setGameMode` needs a platform permission the app does not hold, so this is a setting
+  the user makes, not something the app can ask for.
+
 ## Levers that remain
 
 - The frame rate the guest is asked for: a lower base rate is less heat, and with a fixed-multiplier
   generator it is also the same picture. `Pacing note` says when a chosen rate cannot land on the
   panel.
 - `gpuClockPin` ("Hold the GPU at its top clock" in Performance settings, on by default as of 0.4.9)
-  asks KGSL to stop managing its own power level, and re-asserts that hold while the session runs.
-  `perf.csv` shows what it does: `gpu_pin` says whether it was held, `gpu_mhz` against `gpu_max_mhz`
-  says whether it held at the ceiling, and `gpu_temp_c` says what it costs.
+  asks KGSL to stop managing its own power level, re-asserts that hold while the session runs, and
+  cycles the switch when the clock is below the ceiling (0.4.10). `perf.csv` shows what it does:
+  `gpu_pin` says whether it was held, `gpu_mhz` against `gpu_max_mhz` says whether it held at the
+  ceiling, and `gpu_temp_c` says what it costs.
 - The core lists, which decide which clusters the guest's threads are allowed to use at all.
 
-What none of them can do is lift a cap the platform has already taken away: the measured 0.4.8 cliff
+What none of them can do is lift a cap the platform has already taken away — the kernel clamp in
+`_adjust_pwrlevel()` makes that a property of the driver, not of the app: the measured 0.4.8 cliff
 took the GPU's ceiling from 719 to 295 MHz and every cluster's `scaling_max_freq` down with it, in the
 same second, with the device at 59–61 °C and cooling. A session that meets that cliff can hold its
 rate only by asking the guest for less work.
