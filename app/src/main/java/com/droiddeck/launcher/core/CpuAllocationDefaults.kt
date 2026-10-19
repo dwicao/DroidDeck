@@ -19,9 +19,12 @@ object CpuAllocationDefaults {
             frequencies.values.any { it == null || !it.isFinite() || it <= 0.0 }) return null
         val clusters = frequencies.entries.groupBy { it.value }.toSortedMap(compareBy { it ?: 0.0 }).values.toList()
         if (clusters.map { it.size } != listOf(3, 4, 1)) return null
+        // The game gets every cluster fast enough to render: leaving the prime core to the client
+        // alone costs the guest a fifth of its cores on a platform whose scheduler already moves
+        // a busy thread there, and a 30 fps target that misses by one frame is felt.
         return Allocation(
             client = CpuCores.format(clusters[2].map { it.key }.toSet()),
-            game = CpuCores.format(clusters[1].map { it.key }.toSet()),
+            game = CpuCores.format((clusters[1] + clusters[2]).map { it.key }.toSet()),
         )
     }
 }
