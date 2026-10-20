@@ -48,10 +48,11 @@ class GameEnvironmentTest(unittest.TestCase):
         for error in (FileNotFoundError('missing'), RuntimeError('module initialization failed')):
             calls = []
             with patch.dict(os.environ, {}, clear=True), patch('sys.argv', ['droiddeck-game-env', '/stock', 'run']), \
-                 patch('runpy.run_path', side_effect=error), patch('os.execvpe', side_effect=lambda *args: calls.append(args)), \
-                 patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda command, env, sync: (command, env)):
+                 patch('runpy.run_path', side_effect=error), \
+                 patch.dict(MODULE['main'].__globals__, load_sync=lambda: None, select_sync=lambda command, env, sync: (command, env),
+                            start=lambda launch, env: calls.append(launch) or 0, follow=lambda child, log: 0):
                 MODULE['main']()
-            self.assertEqual(calls[0][0:2], ('/stock', ['/stock', 'run']))
+            self.assertEqual(calls[0][0:2], ['/stock', 'run'])
 
 
     def test_directaudio_capture_follows_the_session_microphone_setting(self):
