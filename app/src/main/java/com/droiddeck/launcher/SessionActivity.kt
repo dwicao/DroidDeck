@@ -1477,6 +1477,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * which skipped it on every surface re-creation — the case that mattered.
      */
     private fun notePacing(hz: Float, plan: SessionPacing.Plan) {
+        // Once stopSession has flipped this, a late surface callback must not overwrite the final
+        // block with a live pin state that GpuClockPin.stop has already cleared.
+        if (!SessionState.running) return
         SessionState.refreshHz = hz
         SessionState.outputHz = plan.outputHz
         val note = SessionPacing.note(plan, FrameGen.mode(this), hz)

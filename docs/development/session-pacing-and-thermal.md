@@ -191,8 +191,8 @@ A saved `gameCpus` value still wins, so anyone who chose their own list keeps it
    compare against the compositor's `perf:` line in the same `session.log`.
 6. `device.txt`: `Session pacing` and `Pacing note` say what the session asked for and where that
    cannot land on the panel; `Session display` says which display, at which rate, with which modes;
-   `GPU clock` puts the clock beside the ceiling the platform allowed (`475 of 719 MHz (platform
-   level 4 caps it at 475 MHz)`), and `GPU clock pin` says which lever held it and whether the level
+   `GPU clock` puts the clock beside the ceiling the platform allowed (`475 MHz (platform level 4
+   allows 475 MHz; hardware top 719 MHz)`), and `GPU clock pin` says which lever held it and whether the level
    node refused the write.
 
 ## What 0.4.9 changed
@@ -283,7 +283,7 @@ second. A gap that will not close is retried with the six-second re-asserts rath
 sample, because the cycle enables the governor for the width of two ioctls.
 
 The HUD and the report show the pair, so the gap is visible while it lasts: `gpu 475/719 MHz` on the
-panel, and `GPU clock 475 of 719 MHz (below the ceiling 719 MHz)` in the report.
+panel, and `GPU clock 475 MHz (below the ceiling 719 MHz)` in the report.
 
 ### The ceiling cannot be lifted by an ioctl, and that is now sourced
 
@@ -333,6 +333,77 @@ Measured, in the order they are worth trying:
   `GameManager.setGameMode` needs a platform permission the app does not hold, so this is a setting
   the user makes, not something the app can ask for.
 
+## What 0.4.11 changed
+
+### The 295 MHz event is the platform, and the peltier is not on the AP die
+
+The 0.4.10 session (2026-10-20 16:55–17:02, NSUNS4 at 960x540, LSFG 2x, external HDMI 60 Hz) has
+203 `perf.csv` rows: 163 at 719 MHz, 19 at 295, 11 at 475, 10 at 401. The 295 rows are one event, and
+it looks like this:
+
+```
+t_s     gpu  max  level  thermal  headroom  gpu_temp
+329.3   719  719    0    light    0.90      68.4      <- one sample before
+331.4   295  295    7    light    0.90      64.9      <- the clamp, then the temp falls
+...
+```
+
+The GPU and CPU were at 68.4 / 69.2 °C with headroom 0.90 when the platform moved the level 0 -> 7;
+the post-clamp 64.9 °C is the temperature *after* the clock was taken, not the trigger. The battery
+was 34.3 °C, so the peltier was cooling the pack and the back of the phone, not the AP die. The
+kernel's own `gpuss` trip points are at 95 °C, and the framework still said `thermal light`; the
+69 °C line therefore belongs to a vendor policy above the kernel, not to the Android thermal status.
+
+The report already named the mode: `Game Mode STANDARD`. The app declares itself a game
+(`android:isGame="true"`, `appCategory="game"`), so Samsung's Game Optimizing Service applies its
+Standard policy to it. `GameManager.setGameMode` needs a platform permission the app does not hold;
+the user's control is **Gaming Hub -> Game Booster -> Game optimisation -> Performance**. The report
+now repeats the mode and that path in every pacing block, so a session can be checked without
+guessing which setting was in force.
+
+### The diagnostics added to answer the next report
+
+- `perf.csv` gains `gpu_guard`, `hottest_zone`, `hottest_c`, `bat_ma`, `bat_mw`, `bat_temp_c`, and
+  `plugged`. The hottest zone is scanned over every `thermal_zone*`, not just `gpuss`: the engine can
+  follow a CPU cluster, and a report that shows only the GPU reads cool while another sensor is over
+  the line. Battery current and power say whether an external cooler is drawing from the phone's own
+  port; a surface at 34 °C with the die at 69 °C is the distinction the numbers are there to keep.
+- The `cap:` line now carries `headroom`, the hottest zone, and battery current beside the level and
+  GPU temperature at the moment the ceiling moves.
+- The GPU section of `device.txt` carries `Hottest thermal zone`, `GPU thermal guard`, and a
+  `Game Booster` line when the mode is `STANDARD`.
+- `Game Mode` is repeated in each pacing block (including the final one), not just in the report
+  written before the surface exists.
+
+### The thermal guard is opt-in
+
+**Performance -> GPU -> Thermal guard** releases a session's hold when `headroom >= 0.89` while the
+platform is still at level 0 and the GPU is at its ceiling. The platform governor then settles the
+clock instead of the platform dropping it to the floor; the hold is restored at `headroom <= 0.82`
+after at least eight seconds. It is off by default because it trades the top clock for a softer
+landing, and because a release that does not lower the die temperature cannot prevent the clamp. It
+is the only app-side lever between a held 719 and the platform's 295; it cannot raise a level the
+platform has taken.
+
+The pin is still reported as `held during the session, released at stop` after a stop, instead of
+the old false `not held`: a late surface callback used to write a pacing block after
+`GpuClockPin.stop`, which made a pin that had held all session look like it failed.
+
+The GPU clock line is also read without the old `475 of 719 MHz` construction: a level above zero
+now says `475 MHz (platform level 4 allows 475 MHz; hardware top 719 MHz)`, and a clock under the
+ceiling says `475 MHz (below the ceiling 719 MHz)`.
+
+### What to do on the device
+
+1. Set **Game Booster -> Game optimisation -> Performance**, start a session, and check `device.txt`
+   for `Game Mode PERFORMANCE`. If the 295 event is gone, the GOS hypothesis is confirmed and no
+   guard is needed.
+2. If the setting is unavailable or the clamp remains, enable **Thermal guard** and compare the
+   `pin: released` and `pin: re-held` lines with the next `cap:` line. If the guard only adds a 475
+   before the 295, it is not helping; leave it off and use root or a cooler mount.
+3. Mount the peltier on the main half (the camera side), flat against the back, with the phone
+   unfolded; a cooler drawing from the phone's USB-C is itself a load the platform budgets for.
+
 ## Levers that remain
 
 - The frame rate the guest is asked for: a lower base rate is less heat, and with a fixed-multiplier
@@ -343,6 +414,8 @@ Measured, in the order they are worth trying:
   cycles the switch when the clock is below the ceiling (0.4.10). `perf.csv` shows what it does:
   `gpu_pin` says whether it was held, `gpu_mhz` against `gpu_max_mhz` says whether it held at the
   ceiling, and `gpu_temp_c` says what it costs.
+- The opt-in thermal guard, which releases that hold at 0.89 headroom and restores it at 0.82; the
+  `gpu_guard` column and the `pin:` lines say whether it acted.
 - The core lists, which decide which clusters the guest's threads are allowed to use at all.
 
 What none of them can do is lift a cap the platform has already taken away — the kernel clamp in

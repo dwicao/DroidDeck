@@ -22,6 +22,7 @@ import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.thermalCelsius
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -65,6 +66,7 @@ object DeviceReport {
             gpuClockText(kgslNumber("clock_mhz"), kgslTop(), kgslNumber("max_clock_mhz"), kgslNumber("thermal_pwrlevel"))
                 ?.let { line(this, "GPU clock", it) }
             line(this, "GPU clock pin", pinText())
+            gameModePacing(context)?.let { line(this, "Game Mode", it) }
             if (note != null) line(this, "Pacing note", note)
         }
         writeBlock(target, block)
@@ -87,10 +89,14 @@ object DeviceReport {
     }
 
     private fun pinText(): String {
-        if (!GpuClockPin.pinned) return "not held"
-        val refused = GpuClockPin.levelRefused
-        return "held at its top (${GpuClockPin.lever})" +
-            (if (refused != null) "; the level node refused: $refused" else "")
+        if (GpuClockPin.pinned) {
+            val refused = GpuClockPin.levelRefused
+            val guard = if (GpuClockPin.suspended) ", released by the thermal guard" else ""
+            return "held at its top (${GpuClockPin.lever})$guard" +
+                (if (refused != null) "; the level node refused: $refused" else "")
+        }
+        if (GpuClockPin.justStopped) return "held during the session, released at stop"
+        return "not held"
     }
 
     /**
@@ -101,11 +107,14 @@ object DeviceReport {
      */
     internal fun gpuClockText(clockMhz: Long?, topMhz: Long?, ceilingMhz: Long?, level: Long?): String? {
         if (clockMhz == null || ceilingMhz == null) return null
-        val of = if (topMhz != null && topMhz > 0 && clockMhz != topMhz) "$clockMhz of $topMhz MHz" else "$clockMhz MHz"
         return when {
-            level != null && level > 0 -> "$of (platform level $level caps it at $ceilingMhz MHz)"
-            clockMhz < ceilingMhz - 5 -> "$of (below the ceiling $ceilingMhz MHz)"
-            else -> "$of (top level)"
+            level != null && level > 0 -> buildString {
+                append("$clockMhz MHz (platform level $level allows $ceilingMhz MHz")
+                if (topMhz != null && topMhz > ceilingMhz) append("; hardware top $topMhz MHz")
+                append(")")
+            }
+            clockMhz < ceilingMhz - 5 -> "$clockMhz MHz (below the ceiling $ceilingMhz MHz)"
+            else -> "$clockMhz MHz (top level)"
         }
     }
 
@@ -118,6 +127,29 @@ object DeviceReport {
     private fun kgslTop(): Long? = runCatching {
         File(KGSL_DIR, "freq_table_mhz").readText().trim().split(Regex("\\s+")).first().toLong()
     }.getOrNull()
+
+    /**
+     * The hottest zone, not just the GPU's: the platform's engine can follow a CPU cluster, and a
+     * report that shows only the GPU reads as cool while another sensor is what crossed the line.
+     */
+    private fun hottestThermalZoneText(): String {
+        val dirs = File("/sys/class/thermal").listFiles { f: File -> f.name.startsWith("thermal_zone") }
+            ?: return "not reported"
+        var bestName: String? = null
+        var bestC = 0.0
+        for (dir in dirs) {
+            val name = runCatching { File(dir, "type").readText().trim() }.getOrNull()
+                ?.takeIf { it.isNotEmpty() } ?: continue
+            val raw = runCatching { File(dir, "temp").readText().trim().toLong() }.getOrNull() ?: continue
+            val c = thermalCelsius(raw) ?: continue
+            if (bestName == null || c > bestC) {
+                bestName = name
+                bestC = c
+            }
+        }
+        return if (bestName == null) "not reported"
+        else String.format(Locale.US, "%s %.1f C", bestName, bestC)
+    }
 
     private fun line(b: StringBuilder, key: String, value: String) {
         b.append(key.padEnd(24)).append(value).append('\n')
@@ -173,6 +205,19 @@ object DeviceReport {
         if (tenths in 1..1000) {
             lines += "Battery temperature" to String.format(Locale.US, "%.1f C", tenths / 10.0)
         }
+        val bm = runCatching { context.getSystemService(android.os.BatteryManager::class.java) }.getOrNull()
+        val currentRaw = runCatching {
+            bm?.getLongProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        }.getOrNull()
+        if (currentRaw != null && currentRaw != Long.MIN_VALUE) {
+            val currentUa = com.droiddeck.launcher.session.BatteryComponent.toMicroamps(currentRaw)
+            lines += "Battery current" to String.format(Locale.US, "%+d mA", currentUa / 1000L)
+            val voltageMv = intent.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, 0)
+            if (voltageMv > 0 && currentUa != 0L) {
+                val powerMw = kotlin.math.abs(currentUa) * (voltageMv.toLong() * 1000L) / 1_000_000_000L
+                lines += "Battery power" to String.format(Locale.US, "%.2f W", powerMw / 1000.0)
+            }
+        }
         return lines
     }
 
@@ -218,6 +263,27 @@ object DeviceReport {
         3 -> "BATTERY"
         4 -> "CUSTOM"
         else -> "MODE_$mode"
+    }
+
+    private fun gameMode(context: Context): Int? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) null
+        else runCatching { context.getSystemService(android.app.GameManager::class.java)?.gameMode }.getOrNull()
+
+    /**
+     * The mode is the framework's, not the app's: a game declared in the manifest is put in
+     * STANDARD unless the user picks Performance in Game Booster, and STANDARD is the policy that
+     * took the GPU to 295 MHz at 69 C on the measured device. The pacing block repeats it because
+     * the setting can be changed while the app is installed.
+     */
+    private fun gameModePacing(context: Context): String? {
+        val mode = gameMode(context) ?: return null
+        return when (mode) {
+            android.app.GameManager.GAME_MODE_PERFORMANCE -> "PERFORMANCE"
+            android.app.GameManager.GAME_MODE_STANDARD ->
+                "STANDARD (GOS may cap the GPU; set Game Booster → Game optimisation → Performance)"
+            android.app.GameManager.GAME_MODE_BATTERY -> "BATTERY"
+            else -> gameModeName(mode)
+        }
     }
 
     internal fun refreshModesSummary(rates: List<Float>): String =
@@ -305,7 +371,11 @@ object DeviceReport {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val rate = runCatching { context.getSystemService(PerformanceHintManager::class.java)?.preferredUpdateRateNanos }.getOrNull()
             k("ADPF hint sessions", if (rate == null || rate <= 0) "not supported" else "supported (preferred update ${rate / 1000} us)")
-            k("Game Mode", runCatching { context.getSystemService(android.app.GameManager::class.java)?.gameMode }.getOrNull()?.let { gameModeName(it) })
+            val mode = gameMode(context)
+            k("Game Mode", mode?.let { gameModeName(it) })
+            if (mode == android.app.GameManager.GAME_MODE_STANDARD) {
+                k("Game Booster", "Standard; set Game optimisation to Performance so GOS stops capping the GPU")
+            }
         }
         runCatching {
             val fs = StatFs(context.filesDir.path)
@@ -320,7 +390,9 @@ object DeviceReport {
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
         k("GPU clock pin", if (SessionPrefs.gpuClockPin(context)) "on, a session holds the top level" else "off, the platform governs the level")
+        k("GPU thermal guard", if (SessionPrefs.thermalGuard(context)) "on, releases the hold near the clamp" else "off, the hold stays until the platform takes it")
         k("GPU clock now", gpuClockText(kgslNumber("clock_mhz"), kgslTop(), kgslNumber("max_clock_mhz"), kgslNumber("thermal_pwrlevel")) ?: "not reported")
+        k("Hottest thermal zone", hottestThermalZoneText())
         k("GPU power levels", runCatching {
             File(KGSL_DIR, "freq_table_mhz").readText().trim().replace(Regex("\\s+"), " ")
         }.getOrNull()?.let { "$it MHz" } ?: "not reported")

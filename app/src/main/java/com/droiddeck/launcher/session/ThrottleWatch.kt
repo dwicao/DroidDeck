@@ -43,6 +43,14 @@ object ThrottleWatch {
     private const val REASSERT_EVERY = 3
     private val CPU_DIR = Regex("cpu\\d+")
 
+    // A held GPU is the first thing a platform thermal engine takes away, and the level it jumps to
+    // is the floor. The guard releases the hold before that jump so the governor can settle the
+    // clock instead; the hysteresis keeps it from flapping, and the minimum hold keeps a release
+    // from being undone by the next sample.
+    private const val GUARD_RELEASE = 0.89
+    private const val GUARD_RESUME = 0.82
+    private const val GUARD_MIN_MS = 8_000L
+
     /** For the panel, so a frame rate can be read next to the state of the chips. */
     var summary by mutableStateOf("")
         private set
@@ -60,6 +68,9 @@ object ThrottleWatch {
     private var lastOnline: String? = null
     private var wasBelowCeiling = false
     private var ddrNode: String? = null
+    private var zones = emptyList<ThermalZone>()
+    private var guardEnabled = false
+    private var guardSince = 0L
 
     /** A session's start. */
     @Synchronized
@@ -80,6 +91,9 @@ object ThrottleWatch {
         lastThermal = Int.MIN_VALUE
         lastOnline = null
         ddrNode = thermalNode("ddr")
+        zones = thermalZones()
+        guardEnabled = SessionPrefs.thermalGuard(app)
+        guardSince = 0L
         val file = SessionState.logDirectory?.let { File(it, "perf.csv") }
         worker = Thread({
             val power = runCatching { app.getSystemService(PowerManager::class.java) }.getOrNull()
@@ -129,7 +143,7 @@ object ThrottleWatch {
         val status = thermalStatus(power)
         val onlineNow = online()
         val headroom = if (Build.VERSION.SDK_INT < 30) null
-        else runCatching { power?.getThermalHeadroom(10) }.getOrNull()
+        else runCatching { power?.getThermalHeadroom(10)?.toDouble() }.getOrNull()
 
         val currents = clusters.map { it.current() }
         val nowMhz = currents.map { values -> if (values.isEmpty()) null else (values.sum() / values.size / 1000L).toInt() }
@@ -140,6 +154,11 @@ object ThrottleWatch {
         val gpuTemp = thermalCelsius(GpuStatsComponent.gpuMilliCelsius())
         val cpuTemp = thermalCelsius(LinuxRuntime.cpuTempSource()?.let { firstNumber(it) })
         val ddrTemp = thermalCelsius(ddrNode?.let { firstNumber(it) })
+        val hottest = hottestZone(zones)
+        val batMa = BatterySnapshot.currentMa
+        val batMw = BatterySnapshot.powerMw
+        val batTemp = BatterySnapshot.tempC
+        val plugged = BatterySnapshot.plugged
         val gpuBusy = firstNumber("$KGSL/gpu_busy_percentage")
         // The devfreq governor's own load estimate, which is the number its clock decision follows.
         // KGSL's `gpu_busy_percentage` reads a constant on the measured device (13% idle and 13%
@@ -164,6 +183,7 @@ object ThrottleWatch {
             gpuBusy?.toString() ?: "",
             gpuGovLoad?.toString() ?: "",
             if (GpuClockPin.pinned) "1" else "0",
+            if (GpuClockPin.suspended) "1" else "0",
             gpuTemp?.let { String.format(Locale.US, "%.1f", it) } ?: "",
             gpuFloor?.toString() ?: "",
             gpuTop?.toString() ?: "",
@@ -173,6 +193,12 @@ object ThrottleWatch {
             lm?.toString() ?: "",
             cpuTemp?.let { String.format(Locale.US, "%.1f", it) } ?: "",
             ddrTemp?.let { String.format(Locale.US, "%.1f", it) } ?: "",
+            hottest?.name ?: "",
+            hottest?.c?.let { String.format(Locale.US, "%.1f", it) } ?: "",
+            batMa?.toString() ?: "",
+            batMw?.toString() ?: "",
+            batTemp?.let { String.format(Locale.US, "%.1f", it) } ?: "",
+            plugged?.let { if (it) "1" else "0" } ?: "",
             memAvailable?.toString() ?: "",
             swapFree?.toString() ?: "",
         )
@@ -189,12 +215,16 @@ object ThrottleWatch {
         }
 
         val held = GpuClockPin.pinned
-        val topMoved = logCapChanges(clusters, limits, gpuFloor, gpuTop, status, onlineNow, held, pwrLevel, gpuTemp)
+        val topMoved = logCapChanges(
+            clusters, limits, gpuFloor, gpuTop, status, onlineNow, held, pwrLevel, gpuTemp,
+            headroom, hottest,
+        )
         lastLimits = limits
         lastGpuFloor = gpuFloor
         lastGpuTop = gpuTop
         lastThermal = status
         lastOnline = onlineNow
+        maybeGuard(headroom, pwrLevel, gpuMhz, gpuTop, gpuTemp)
 
         // A held clock is repeated when the ceiling moves, and now and then anyway: whether it
         // still takes shows up in the next row's clock against that ceiling.
@@ -226,9 +256,11 @@ object ThrottleWatch {
                 val load = gpuGovLoad ?: gpuBusy
                 if (load != null) append(String.format(Locale.US, " %d%%", load))
                 if (gpuTemp != null) append(String.format(Locale.US, " @ %.1f C", gpuTemp))
-                if (GpuClockPin.pinned) append(" held")
+                if (GpuClockPin.pinned) append(if (GpuClockPin.suspended) " guard" else " held")
                 if (cpuTemp != null) append(String.format(Locale.US, " | cpu %.1f C", cpuTemp))
                 if (headroom != null) append(String.format(Locale.US, " | headroom %.2f", headroom))
+                hottest?.let { append(String.format(Locale.US, " | hottest %s %.1f C", it.name, it.c)) }
+                if (batMa != null) append(String.format(Locale.US, " | bat %+d mA %.1f W", batMa, (batMw ?: 0) / 1000.0))
                 if (memAvailable != null) append(String.format(Locale.US, " | mem %d MB", memAvailable / 1024))
             })
         }
@@ -245,6 +277,7 @@ object ThrottleWatch {
                 // from reading as the pin holding the wrong level.
                 if (gpuTop != null && gpuTop > gpuMhz + 5) append("/").append(gpuTop)
                 append(" MHz")
+                if (GpuClockPin.suspended) append(" guard")
             }
         }
     }
@@ -260,6 +293,8 @@ object ThrottleWatch {
         held: Boolean,
         pwrLevel: Long?,
         gpuTempC: Double?,
+        headroom: Double?,
+        hottest: ZoneReading?,
     ): Boolean {
         val changed = ArrayList<String>(4)
         if (lastLimits.size == limits.size) {
@@ -277,10 +312,13 @@ object ThrottleWatch {
             // The ceiling is the platform's, so a held clock follows it down rather than past it:
             // saying so here keeps the two cases apart when the frame rate falls with it. The
             // level that set it, and the temperature at the time, are what a report is read for.
-            val why = ArrayList<String>(3)
+            val why = ArrayList<String>(6)
             pwrLevel?.let { why += "level $it" }
-            if (held) why += "held"
+            if (held) why += if (GpuClockPin.suspended) "guard" else "held"
             gpuTempC?.let { why += String.format(Locale.US, "gpu %.1f C", it) }
+            headroom?.let { why += String.format(Locale.US, "headroom %.2f", it) }
+            hottest?.let { why += String.format(Locale.US, "hottest %s %.1f C", it.name, it.c) }
+            BatterySnapshot.currentMa?.let { why += "bat $it mA" }
             changed += "gpu top $wasTop→$gpuTop MHz" +
                 (if (why.isEmpty()) "" else " (" + why.joinToString(", ") + ")")
         }
@@ -291,6 +329,43 @@ object ThrottleWatch {
         }
         if (changed.isNotEmpty()) Log.i(TAG, "cap: " + changed.joinToString(", "))
         return topMoved
+    }
+
+    /**
+     * A held GPU is released when the thermal headroom says the platform is about to take it to the
+     * floor. The platform's own governor then picks the clock, and the hold is restored once the
+     * headroom has recovered. This is opt-in because it trades the top clock for a softer landing.
+     */
+    private fun maybeGuard(
+        headroom: Double?,
+        pwrLevel: Long?,
+        gpuMhz: Long?,
+        gpuTop: Long?,
+        gpuTemp: Double?,
+    ) {
+        if (!guardEnabled || !GpuClockPin.pinned || GpuClockPin.lever != "ioctl") return
+        val h = headroom ?: return
+        if (pwrLevel != 0L) return
+        val now = System.currentTimeMillis()
+        if (!GpuClockPin.suspended) {
+            val atTop = gpuMhz != null && gpuTop != null && gpuMhz >= gpuTop - 5
+            if (!atTop || h < GUARD_RELEASE) return
+            if (!GpuClockPin.suspendForGuard()) return
+            guardSince = now
+            Log.i(TAG, String.format(
+                Locale.US,
+                "pin: released at headroom %.2f, gpu %d/%d MHz, gpu %.1f C — letting the governor settle it before the platform clamp",
+                h, gpuMhz, gpuTop, gpuTemp ?: Double.NaN,
+            ))
+        } else if (h <= GUARD_RESUME && now - guardSince >= GUARD_MIN_MS) {
+            if (!GpuClockPin.resumeFromGuard()) return
+            guardSince = 0L
+            Log.i(TAG, String.format(
+                Locale.US,
+                "pin: re-held at headroom %.2f, gpu %s/%s MHz",
+                h, gpuMhz?.toString() ?: "?", gpuTop?.toString() ?: "?",
+            ))
+        }
     }
 
     /** One clock domain: the cores that can reach the same top frequency. */
@@ -336,9 +411,10 @@ object ThrottleWatch {
     private fun csvHeader(count: Int): String {
         val cells = mutableListOf(
             "t_s", "game_fps", "thermal", "online", "headroom",
-            "gpu_mhz", "gpu_busy_pct", "gpu_gov_load", "gpu_pin", "gpu_temp_c", "gpu_min_mhz", "gpu_max_mhz",
+            "gpu_mhz", "gpu_busy_pct", "gpu_gov_load", "gpu_pin", "gpu_guard", "gpu_temp_c", "gpu_min_mhz", "gpu_max_mhz",
             "gpu_pwrlevel", "gpu_throttle", "bcl", "lm",
-            "cpu_temp_c", "ddr_temp_c", "mem_avail_kb", "swap_free_kb",
+            "cpu_temp_c", "ddr_temp_c", "hottest_zone", "hottest_c",
+            "bat_ma", "bat_mw", "bat_temp_c", "plugged", "mem_avail_kb", "swap_free_kb",
         )
         for (i in 0 until count) {
             cells += "c${i}_cur_mhz"
@@ -370,6 +446,33 @@ object ThrottleWatch {
         }
         return fallback
     }
+
+    /**
+     * Every zone's name and temp path, captured once: the GPU's own sensor is not necessarily the
+     * one the platform's thermal engine follows, and a report that names only `gpuss` can miss the
+     * CPU zone that crossed the line.
+     */
+    private fun thermalZones(): List<ThermalZone> {
+        val dirs = File(THERMAL_ROOT).listFiles { f: File -> f.name.startsWith("thermal_zone") } ?: return emptyList()
+        return dirs.mapNotNull { dir ->
+            val name = runCatching { File(dir, "type").readText().trim() }.getOrNull()
+                ?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+            ThermalZone(name, File(dir, "temp").path)
+        }
+    }
+
+    private fun hottestZone(zones: List<ThermalZone>): ZoneReading? {
+        var best: ZoneReading? = null
+        for (zone in zones) {
+            val c = thermalCelsius(firstNumber(zone.path)) ?: continue
+            if (best == null || c > best.c) best = ZoneReading(zone.name, c)
+        }
+        return best
+    }
+
+    private class ThermalZone(val name: String, val path: String)
+
+    private class ZoneReading(val name: String, val c: Double)
 
     /** PowerManager reports the thermal status from Android 10; -1 where it does not. */
     private fun thermalStatus(power: PowerManager?): Int =

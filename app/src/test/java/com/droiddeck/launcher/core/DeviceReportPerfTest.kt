@@ -35,17 +35,21 @@ class DeviceReportPerfTest {
 
     @Test fun aHeldClockIsReadBesideThePlatformsCeiling() {
         assertEquals(
-            "475 of 719 MHz (platform level 4 caps it at 475 MHz)",
+            "475 MHz (platform level 4 allows 475 MHz; hardware top 719 MHz)",
             DeviceReport.gpuClockText(475, 719, 475, 4),
         )
         assertEquals("719 MHz (top level)", DeviceReport.gpuClockText(719, 719, 719, 0))
         assertEquals(
-            "475 of 719 MHz (below the ceiling 719 MHz)",
+            "475 MHz (below the ceiling 719 MHz)",
             DeviceReport.gpuClockText(475, 719, 719, 0),
         )
         assertEquals(
-            "295 of 719 MHz (platform level 7 caps it at 295 MHz)",
+            "295 MHz (platform level 7 allows 295 MHz; hardware top 719 MHz)",
             DeviceReport.gpuClockText(295, 719, 295, 7),
+        )
+        assertEquals(
+            "475 MHz (platform level 4 allows 475 MHz)",
+            DeviceReport.gpuClockText(475, null, 475, 4),
         )
     }
 

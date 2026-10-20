@@ -359,6 +359,16 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
     }
 
+    /**
+     * Off by default: the guard trades the top clock for a softer landing, and whether that is
+     * wanted is a per-device decision, not a policy the app should apply to every session.
+     */
+    fun thermalGuard(context: Context): Boolean = prefs(context).getBoolean("thermalGuard", false)
+
+    fun setThermalGuard(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("thermalGuard", on).apply()
+    }
+
     /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
     fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
 

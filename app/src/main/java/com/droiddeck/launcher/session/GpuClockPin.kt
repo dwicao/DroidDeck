@@ -52,10 +52,28 @@ object GpuClockPin {
     var lever = ""
         private set
 
+    /**
+     * Whether the thermal guard has released a session's hold so the platform's own governor can
+     * settle the clock before the platform clamps it to the floor.
+     */
+    @Volatile
+    var suspended = false
+        private set
+
+    /**
+     * Whether the last session ended with a hold in place. A report can be written after [stop],
+     * and saying "not held" there reads as a pin that failed during the session.
+     */
+    @Volatile
+    var justStopped = false
+        private set
+
     /** Why the level node could not be written, for a report, when the ioctl is the lever in use. */
     @Volatile
     var levelRefused: String? = null
         private set
+
+    private var lastLever = ""
 
     /** Null until the sysfs node has been tried, then whether it accepts a write on this device. */
     private var levelWritable: Boolean? = null
@@ -67,6 +85,9 @@ object GpuClockPin {
 
     @Synchronized
     fun start(context: Context): String {
+        suspended = false
+        justStopped = false
+        lastLever = ""
         if (!SessionPrefs.gpuClockPin(context)) {
             pinned = false
             lever = ""
@@ -78,6 +99,7 @@ object GpuClockPin {
             val via = hold()
             pinned = true
             lever = via
+            lastLever = via
             "gpu clock: held at its top ($via)"
         } catch (t: Throwable) {
             Log.w(TAG, "pin", t)
@@ -97,9 +119,10 @@ object GpuClockPin {
      */
     @Synchronized
     fun reassert(force: Boolean = false): Boolean {
-        if (!pinned) return false
+        if (!pinned || suspended) return false
         return try {
             lever = hold(force)
+            lastLever = lever
             true
         } catch (t: Throwable) {
             Log.w(TAG, "re-assert", t)
@@ -107,14 +130,47 @@ object GpuClockPin {
         }
     }
 
+    /**
+     * Lets the platform's governor take the level back while the session keeps its marker. The next
+     * [reassert] is ignored until [resumeFromGuard], so a sampler that repeats its hold every few
+     * seconds cannot undo the release.
+     */
+    @Synchronized
+    fun suspendForGuard(): Boolean {
+        if (!pinned || lever != "ioctl" || suspended) return false
+        return try {
+            WaylandCompositor.nativeSetGpuTurbo(false)
+            ioctlOn = false
+            suspended = true
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "guard release", t)
+            false
+        }
+    }
+
+    @Synchronized
+    fun resumeFromGuard(): Boolean {
+        if (!pinned || lever != "ioctl" || !suspended) return false
+        return try {
+            WaylandCompositor.nativeSetGpuTurbo(true)
+            ioctlOn = true
+            suspended = false
+            true
+        } catch (t: Throwable) {
+            Log.w(TAG, "guard resume", t)
+            false
+        }
+    }
+
     @Synchronized
     fun stop(context: Context) {
-        if (pinned) clear(context)
+        if (pinned) clear(context, held = true)
     }
 
     @Synchronized
     fun clearLeftover(context: Context) {
-        if (File(context.filesDir, MARKER).exists()) clear(context)
+        if (File(context.filesDir, MARKER).exists()) clear(context, held = false)
     }
 
     private fun hold(force: Boolean = false): String {
@@ -146,7 +202,7 @@ object GpuClockPin {
         return if (open in 0 until close) message.substring(open + 1, close) else message
     }
 
-    private fun clear(context: Context) {
+    private fun clear(context: Context, held: Boolean) {
         if (supported) {
             try {
                 WaylandCompositor.nativeSetGpuTurbo(false)
@@ -157,8 +213,11 @@ object GpuClockPin {
         }
         // A written power level is not taken back: that node is the platform's, and its thermal
         // engine owns the value from here on.
+        lastLever = if (held) lever else ""
+        justStopped = held && lastLever.isNotEmpty()
         pinned = false
         lever = ""
+        suspended = false
         File(context.filesDir, MARKER).delete()
     }
 }
