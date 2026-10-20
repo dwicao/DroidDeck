@@ -19,6 +19,20 @@ Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adre
 
 On Android 14 and newer, before Steam launches, you must turn on **Disable child process restrictions** in Developer options. If this option is not available in developer settings (Android 12 and 13 devices), first launch of Steam will present a "Fix it for me" button, which will help automate the setup process.
 
+## Performance and thermals
+
+The **Performance** page can hold the GPU at the top level the platform allows. **Thermal guard** is
+off by default: when enabled, it releases that hold as the thermal headroom reaches the limit and
+restores it after the device cools, trading the top clock for a softer landing instead of letting
+the platform drop straight to its floor. Neither setting can raise a level the platform's thermal
+engine has already taken away.
+
+On Samsung devices the vendor game policy also applies. Set **Gaming Hub → ⋮ → Game Booster → Game
+optimisation → Performance**; `device.txt` reports the active `Game Mode` and the hottest thermal
+zone. On an SM-F946B running NSUNS4 at 1280x720, 0.4.11 held 30 FPS (60 with LSFG 2x) at moderate
+thermal, mostly at 475 MHz with occasional 295 MHz. A cooler mount and a charger with headroom
+remain the reliable ways to keep a higher ceiling.
+
 ## Community
 
 Join the [DroidDeck Discord](https://discord.gg/JRGAvawjsm) for help, Preview builds, and device reports. Bug reports go in its **#bug-reports** forum; attach the zip from **Share logs** (Setup, or the session drawer) so the logs come with it.

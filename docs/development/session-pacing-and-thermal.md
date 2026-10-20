@@ -394,14 +394,29 @@ The GPU clock line is also read without the old `475 of 719 MHz` construction: a
 now says `475 MHz (platform level 4 allows 475 MHz; hardware top 719 MHz)`, and a clock under the
 ceiling says `475 MHz (below the ceiling 719 MHz)`.
 
+### The first 0.4.11 session: 1280x720 at moderate
+
+The next session raised the guest to 1280x720 and kept LSFG at 2x, with Thermal guard enabled. The
+user reports a stable 30 FPS base and 60 FPS output at thermal status MODERATE. The GPU was mostly
+at 475 MHz (platform level 4) and occasionally at 295 MHz (level 7); it did not stay at 719, and the
+frame rate did not collapse when the floor moved. That is the shape the guard is for: 475 most of
+the time is cheaper than 719 until the cliff, and a base rate with headroom absorbs the samples at
+295.
+
+This is one session on one device, not a claim that the guard raises the ceiling. The platform still
+owns 295, and the guard cannot lift it. What changed is the landing.
+
 ### What to do on the device
 
 1. Set **Game Booster -> Game optimisation -> Performance**, start a session, and check `device.txt`
    for `Game Mode PERFORMANCE`. If the 295 event is gone, the GOS hypothesis is confirmed and no
    guard is needed.
-2. If the setting is unavailable or the clamp remains, enable **Thermal guard** and compare the
-   `pin: released` and `pin: re-held` lines with the next `cap:` line. If the guard only adds a 475
-   before the 295, it is not helping; leave it off and use root or a cooler mount.
+2. If the setting is unavailable or the 295 floor is still disruptive, enable **Thermal guard** and
+   compare the `gpu_guard`, `pin: released`, and `pin: re-held` lines with the next `cap:` line. The
+   measured 1280x720 result is a stable 30 FPS at MODERATE with the clock mostly at 475 and
+   occasionally at 295, so judge the guard by frame pacing and the distribution of levels, not by
+   whether every 295 sample disappears. If the base rate still collapses when the floor moves, the
+   guard is not enough; leave it off and use root or a cooler mount.
 3. Mount the peltier on the main half (the camera side), flat against the back, with the phone
    unfolded; a cooler drawing from the phone's USB-C is itself a load the platform budgets for.
 
@@ -416,7 +431,8 @@ ceiling says `475 MHz (below the ceiling 719 MHz)`.
   `gpu_pin` says whether it was held, `gpu_mhz` against `gpu_max_mhz` says whether it held at the
   ceiling, and `gpu_temp_c` says what it costs.
 - The opt-in thermal guard, which releases that hold at 0.89 headroom and restores it at 0.82; the
-  `gpu_guard` column and the `pin:` lines say whether it acted.
+  `gpu_guard` column and the `pin:` lines say whether it acted. In the measured 1280x720 session it
+  kept the clock mostly at 475 MHz and the base rate stable at 30 FPS, with occasional 295 samples.
 - The core lists, which decide which clusters the guest's threads are allowed to use at all.
 
 What none of them can do is lift a cap the platform has already taken away — the kernel clamp in
