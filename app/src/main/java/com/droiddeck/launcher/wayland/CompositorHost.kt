@@ -34,7 +34,7 @@ object CompositorHost {
         fpsLimit: Int,
         outputHz: Float,
     ): Boolean {
-        pace(fpsLimit, outputHz)
+        pace(refreshHz, fpsLimit, outputHz)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
             attached = surface
@@ -42,7 +42,6 @@ object CompositorHost {
             resumeVsync()
             return false
         }
-        WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         com.droiddeck.launcher.gpu.TpUbwcHint.applyToProcess()
         WaylandCompositor.nativeStartWithSurface(
             surface, xdgRuntimeDir, driverPath, libraryName, nativeLibDir,
@@ -53,9 +52,20 @@ object CompositorHost {
         return true
     }
 
-    fun pace(fpsLimit: Int, outputHz: Float) {
+    private fun pace(refreshHz: Float, fpsLimit: Int, outputHz: Float) {
         WaylandCompositor.nativeSetFpsLimit(fpsLimit)
         WaylandCompositor.nativeSetLayerFrameRate(outputHz)
+        WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
+        SessionState.refreshHz = refreshHz
+    }
+
+    @Synchronized
+    fun updatePacing(refreshHz: Float, fpsLimit: Int, outputHz: Float) {
+        if (started) pace(refreshHz, fpsLimit, outputHz)
+    }
+
+    fun pace(fpsLimit: Int, outputHz: Float) {
+        pace(SessionState.refreshHz, fpsLimit, outputHz)
     }
 
     @Synchronized

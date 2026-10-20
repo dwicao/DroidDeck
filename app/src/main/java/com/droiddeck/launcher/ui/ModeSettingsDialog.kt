@@ -80,6 +80,7 @@ class ModeSettings(
     val syncBackend: String? = null,
     val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
+    val steamClientArch: String? = null,
     val steamRepairQueued: Boolean = false,
     val mangoapp: Boolean = true,
     val steamController: String? = null,
@@ -130,6 +131,7 @@ class ModeSettingsActions(
     val onPicturePosition: (String) -> Unit = {},
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
+    val onSteamClientArch: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onSteamController: (String) -> Unit = {},
     val onUnfoldedControls: (Boolean) -> Unit = {},
@@ -137,7 +139,7 @@ class ModeSettingsActions(
     val onBootMovie: (String) -> Unit = {},
     val onBootMovieSound: (Boolean) -> Unit = {},
     val onImportBootMovie: () -> Unit = {},
-    val onRemoveBootMovie: () -> Unit = {},
+    val onBootMovieChanged: () -> Unit = {},
     val onWifiDiscovery: (Boolean) -> Unit = {},
     val onWifiDiscoverySettings: () -> Unit = {},
     val onDeckyInstall: (DeckyManager.Release) -> Unit = {},
@@ -147,6 +149,29 @@ class ModeSettingsActions(
     val onPickDeckyPluginZip: () -> Unit = {},
     val onDismiss: () -> Unit,
 )
+
+/** "2610 r3" from droiddeck-steam-x64's FEX_TAG line (fex-2610-r3), the build the x86-64 client downloads. */
+internal fun fexVersionOf(script: String): String? =
+    Regex("""(?m)^FEX_TAG=(fex-\d+-r\d+)\s*$""").find(script)?.let { fexVersionOfTag(it.groupValues[1]) }
+
+/** "2610 r5" from a tag such as fex-2610-r5. */
+internal fun fexVersionOfTag(tag: String): String? =
+    Regex("""fex-(\d+)-r(\d+)""").matchEntire(tag.trim())?.let { "${it.groupValues[1]} r${it.groupValues[2]}" }
+
+/** The build installed in the runtime, else the one fex.json names, else the one the launcher pins. */
+@Composable
+private fun x64FexVersion(context: android.content.Context): String? = remember {
+    val root = com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(context)
+    runCatching { java.io.File(root, "usr/local/share/fex-emu/.droiddeck-tag").readText() }.getOrNull()?.let(::fexVersionOfTag)
+        ?: com.droiddeck.launcher.session.FexCatalog.cached(context)?.tag?.let(::fexVersionOfTag)
+        ?: runCatching {
+            context.assets.open("linuxfs/usr/local/bin/droiddeck-steam-x64").bufferedReader().use { fexVersionOf(it.readText()) }
+        }.getOrNull()
+}
+
+@Composable
+private fun clientArchHint(hint: String, fex: String?): String =
+    if (fex == null) hint else hint + " " + stringResource(R.string.mode_client_arch_fex, fex)
 
 internal fun modeSheetTabs(steam: Boolean): List<String> =
     if (steam) listOf(SheetTab.STEAM, SheetTab.DISPLAY, SheetTab.CONTROLS, SheetTab.AUDIO, SheetTab.SESSION, SheetTab.LIBRARY)
@@ -225,7 +250,7 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
         SettingsGroup(if (steam) stringResource(R.string.mode_touch_controls) else stringResource(R.string.mode_touch)) {
             ChoiceRow(
                 host, "touch", stringResource(R.string.mode_touch), null,
-                listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.common_auto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)), s.touchMode,
+                listOf(SessionPrefs.TOUCH_AUTO to stringResource(R.string.common_auto), SessionPrefs.TOUCH_PAD to stringResource(R.string.mode_touch_touchpad), SessionPrefs.TOUCH_DIRECT to stringResource(R.string.mode_touch_direct), SessionPrefs.TOUCH_GESTURES to stringResource(R.string.mode_touch_gestures), SessionPrefs.TOUCH_OFF to stringResource(R.string.widgets_off)), s.touchMode,
                 note = stringResource(R.string.mode_touch_note),
                 onPick = a.onTouch,
             )
@@ -298,6 +323,15 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 stringResource(if (s.zramSupported == false) R.string.mode_zram_unsupported else R.string.mode_zram_hint),
                 s.zramCompression && s.zramSupported != false, enabled = s.zramSupported == true,
                 onChange = a.onZramCompression,
+            )
+            if (s.syncBackend != null) ChoiceRow(
+                host, "sync", stringResource(R.string.sync_backend_title), stringResource(R.string.sync_backend_hint),
+                listOf(
+                    SessionPrefs.SYNC_NTSYNC to stringResource(R.string.sync_backend_ntsync),
+                    SessionPrefs.SYNC_FSYNC to stringResource(R.string.sync_backend_fsync),
+                    SessionPrefs.SYNC_ESYNC to stringResource(R.string.sync_backend_esync),
+                    SessionPrefs.SYNC_WINESERVER to stringResource(R.string.sync_backend_wineserver),
+                ), s.syncBackend, onPick = a.onSyncBackend,
             )
         }
         if (s.pipSupported) SettingsGroup(stringResource(R.string.pip_title)) {
@@ -426,42 +460,14 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
             ) {
                 SecondaryButton(stringResource(R.string.mode_steam_repair_button), enabled = !s.steamRepairQueued, onClick = a.onSteamRepair)
             }
-        }
-        if (s.bootMovie != null) SettingsGroup(stringResource(R.string.boot_movie)) {
-            ChoiceRow(
-                host, "boot-movie", stringResource(R.string.boot_movie_video), stringResource(R.string.common_applies_next_session),
-                buildList {
-                    add(BootMovie.DROIDDECK_30 to stringResource(R.string.boot_movie_droiddeck, 30))
-                    add(BootMovie.DROIDDECK_60 to stringResource(R.string.boot_movie_droiddeck, 60))
-                    s.bootMovieCustomName?.let { add(BootMovie.CUSTOM to it) }
-                }, s.bootMovie,
-                note = stringResource(R.string.boot_movie_note), onPick = a.onBootMovie,
+            if (s.steamClientArch != null) ChoiceRow(
+                host, "clientArch", stringResource(R.string.mode_client_arch),
+                clientArchHint(stringResource(R.string.common_applies_next_session), x64FexVersion(LocalContext.current)),
+                listOf("arm64" to stringResource(R.string.mode_client_arch_arm64), "x86_64" to stringResource(R.string.mode_client_arch_x64)), s.steamClientArch,
+                onPick = a.onSteamClientArch,
             )
-            ToggleRow(
-                host, "boot-movie-sound", stringResource(R.string.boot_movie_sound),
-                stringResource(R.string.common_applies_next_session), s.bootMovieSound, onChange = a.onBootMovieSound,
-            )
-            SettingsRow(
-                stringResource(R.string.boot_movie_custom),
-                stringResource(R.string.boot_movie_custom_hint, (BootMovie.MAX_BYTES shr 20).toInt(), BootMovie.MAX_CONVERT_SECONDS),
-            ) {
-                Row(horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(6.dp)) {
-                    SecondaryButton(
-                        when {
-                            s.bootMovieProgress >= 0 -> stringResource(R.string.boot_movie_converting, s.bootMovieProgress)
-                            s.bootMovieImporting -> stringResource(R.string.common_working)
-                            else -> stringResource(R.string.boot_movie_import)
-                        },
-                        enabled = !s.bootMovieImporting,
-                        progress = s.bootMovieProgress.takeIf { it >= 0 }?.let { it / 100f },
-                        onClick = a.onImportBootMovie,
-                    )
-                    if (s.bootMovieCustomName != null) SecondaryButton(
-                        stringResource(R.string.boot_movie_remove), enabled = !s.bootMovieImporting, onClick = a.onRemoveBootMovie,
-                    )
-                }
-            }
         }
+        if (s.bootMovie != null) BootMovieGroup(s, a, host)
         if (s.wifiDiscovery != null) SettingsGroup(stringResource(R.string.mode_network)) {
             val hint = when {
                 s.wifiDiscovery && !s.wifiDiscoveryLocation -> stringResource(R.string.mode_wifi_location_off)

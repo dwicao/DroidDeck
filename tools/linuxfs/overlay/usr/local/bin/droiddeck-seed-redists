@@ -6,9 +6,11 @@ LIBRARIES=${DROIDDECK_LIBRARIES-/mnt/droiddeck /mnt/droiddeck-sd}
 redist="$steam_root/steamapps/common/Steamworks Shared/_CommonRedist"
 
 read_scripts() { xargs -0 -r awk -v want="${1:-redists}" '
-  FNR == 1 { depth = 0; pending = "" }
-  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; vulkan[depth] = 0; pending = ""; next }
+  FNR == 1 { depth = 0; pending = ""; appid = "" }
+  /^[[:space:]]*\{/ { depth++; name[depth] = pending; key[depth] = ""; vulkan[depth] = 0; proc[depth] = 0; pending = ""; next }
   /^[[:space:]]*\}/ {
+    if (depth > 0 && key[depth] == "" && proc[depth] && appid != "" && name[depth] != "" && vulkan[depth] == (want == "vulkan"))
+      printf "HKEY_LOCAL_MACHINE\\\\Software\\\\Valve\\\\Steam\\\\Apps\\\\%s\t%s\n", appid, name[depth]
     if (depth > 0 && key[depth] != "" && name[depth] != "" && vulkan[depth] == (want == "vulkan"))
       printf "%s\t%s\n", key[depth], name[depth]
     if (depth > 0) depth--
@@ -16,8 +18,10 @@ read_scripts() { xargs -0 -r awk -v want="${1:-redists}" '
   }
   {
     n = split($0, part, "\"")
+    if (n >= 5 && tolower(part[2]) == "appid" && part[4] ~ /^[0-9]+$/) { appid = part[4]; next }
     if (n >= 5 && tolower(part[2]) == "hasrunkey") { key[depth] = part[4]; next }
     if (n >= 5 && tolower(part[2]) ~ /^process [0-9]+$/) {
+      proc[depth] = 1
       program = tolower(part[4])
       sub(/.*[\\\/]/, "", program)
       if (program ~ /vulkan/) vulkan[depth] = 1
@@ -184,6 +188,7 @@ present() { awk -F'\t' '
   }
 ' - "$1"; }
 
+regs=()
 for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /mnt/droiddeck-sd/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
            /root/Games/*/steamapps/common/Proton*/files/share/default_pfx*/system.reg \
@@ -191,8 +196,21 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
            "$steam_root"/steamapps/compatdata/*/pfx/system.reg \
            /mnt/droiddeck-sd/steamapps/compatdata/*/pfx/system.reg \
            /root/Games/*/steamapps/compatdata/*/pfx/system.reg; do
-  [ -f "$reg" ] || continue
+  [ -f "$reg" ] && regs+=("$reg")
+done
+declare -A regid=()
+if [ ${#regs[@]} -gt 0 ]; then
+  while IFS=$'\t' read -r id name; do
+    regid[$name]=$id
+  done < <(stat -c $'%i %s %.9Y\t%n' -- "${regs[@]}" 2>/dev/null)
+fi
+
+for reg in "${regs[@]}"; do
   seeded=${reg%/*}/.droiddeck-redists
+  checked=${reg%/*}/.droiddeck-redists-checked
+  id=${regid[$reg]:-}
+  prev=
+  [ -f "$checked" ] && read -r prev <"$checked"
   legacy=${reg%/*}/.bannerlator-redists
   if [ -f "$legacy" ] && [ ! -f "$seeded" ]; then
     mv -f "$legacy" "$seeded"
@@ -206,12 +224,13 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
     if [ -n "${vulkan[$line]:-}" ]; then stale+=("$line"); else kept+=("$line"); fi
   done
   if [ ${#stale[@]} -gt 0 ] && unseed "$reg" "${stale[@]}"; then
+    id=
     had=()
     for line in "${kept[@]}"; do had[$line]=1; done
     printf '%s\n' "${kept[@]}" >"$seeded"
     echo "== took Vulkan runtime markers out of $reg"
   fi
-  if [ ${#had[@]} -gt 0 ]; then
+  if [ ${#had[@]} -gt 0 ] && { [ -z "$id" ] || [ "$id" != "$prev" ]; }; then
     declare -A held=()
     while IFS= read -r line; do [[ $line == *$'\t'* ]] && held[$line]=1; done < <(printf '%s\n' "${!had[@]}" | present "$reg")
     if [ ${#held[@]} -lt ${#had[@]} ]; then
@@ -224,7 +243,11 @@ for reg in "$steam_root"/steamapps/common/Proton*/files/share/default_pfx*/syste
   fi
   missing=()
   for line in "${want[@]}"; do [ -n "${had[$line]:-}" ] || missing+=("$line"); done
-  [ ${#missing[@]} -eq 0 ] && continue
+  if [ ${#missing[@]} -eq 0 ]; then
+    [ -n "$id" ] && [ "$id" != "$prev" ] && printf '%s\n' "$id" >"$checked"
+    continue
+  fi
+  rm -f "$checked"
   dated=$(mktemp) || continue
   touch -r "$reg" "$dated"
   if printf '%s\n' "$(block_for "${missing[@]}")" >>"$reg"; then
