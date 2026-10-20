@@ -5,6 +5,8 @@
   </picture>
 </p>
 
+<h3 align="center">Blazing Fast Performance</h3>
+
 DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton.
 
 > **This fork.** This tree is ahead of the upstream `Droid-Deck/DroidDeck` tree. The 25 commits through `7dbf0842` are summarized under [Fork changes](#fork-changes), and the APKs currently published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases). Upstream releases do not include these changes.
