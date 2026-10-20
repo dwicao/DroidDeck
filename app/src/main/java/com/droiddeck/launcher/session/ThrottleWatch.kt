@@ -224,7 +224,7 @@ object ThrottleWatch {
         lastGpuTop = gpuTop
         lastThermal = status
         lastOnline = onlineNow
-        maybeGuard(headroom, pwrLevel, gpuMhz, gpuTop, gpuTemp)
+        maybeGuard(status, headroom, pwrLevel, gpuMhz, gpuTop, gpuTemp)
 
         // A held clock is repeated when the ceiling moves, and now and then anyway: whether it
         // still takes shows up in the next row's clock against that ceiling.
@@ -337,6 +337,7 @@ object ThrottleWatch {
      * headroom has recovered. This is opt-in because it trades the top clock for a softer landing.
      */
     private fun maybeGuard(
+        status: Int,
         headroom: Double?,
         pwrLevel: Long?,
         gpuMhz: Long?,
@@ -344,6 +345,7 @@ object ThrottleWatch {
         gpuTemp: Double?,
     ) {
         if (!guardEnabled || !GpuClockPin.pinned || GpuClockPin.lever != "ioctl") return
+        if (status < PowerManager.THERMAL_STATUS_LIGHT) return
         val h = headroom ?: return
         if (pwrLevel != 0L) return
         val now = System.currentTimeMillis()

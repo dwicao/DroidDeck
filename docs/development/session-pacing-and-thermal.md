@@ -377,8 +377,9 @@ guessing which setting was in force.
 
 ### The thermal guard is opt-in
 
-**Performance -> GPU -> Thermal guard** releases a session's hold when `headroom >= 0.89` while the
-platform is still at level 0 and the GPU is at its ceiling. The platform governor then settles the
+**Performance -> GPU -> Thermal guard** releases a session's hold when `headroom >= 0.89`, the
+framework is at thermal status LIGHT or above, the platform is still at level 0, and the GPU is at
+its ceiling. The platform governor then settles the
 clock instead of the platform dropping it to the floor; the hold is restored at `headroom <= 0.82`
 after at least eight seconds. It is off by default because it trades the top clock for a softer
 landing, and because a release that does not lower the die temperature cannot prevent the clamp. It

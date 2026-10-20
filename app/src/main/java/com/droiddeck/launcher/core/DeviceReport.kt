@@ -90,10 +90,11 @@ object DeviceReport {
 
     private fun pinText(): String {
         if (GpuClockPin.pinned) {
-            val refused = GpuClockPin.levelRefused
-            val guard = if (GpuClockPin.suspended) ", released by the thermal guard" else ""
-            return "held at its top (${GpuClockPin.lever})$guard" +
-                (if (refused != null) "; the level node refused: $refused" else "")
+            val refused = (if (GpuClockPin.levelRefused != null) "; the level node refused: ${GpuClockPin.levelRefused}" else "")
+            if (GpuClockPin.suspended) {
+                return "released by the thermal guard (${GpuClockPin.lever}); the hold returns when headroom recovers$refused"
+            }
+            return "held at its top (${GpuClockPin.lever})$refused"
         }
         if (GpuClockPin.justStopped) return "held during the session, released at stop"
         return "not held"
