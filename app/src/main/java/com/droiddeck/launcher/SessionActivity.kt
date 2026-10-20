@@ -1757,9 +1757,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
         val wanted = window.attributes.preferredDisplayModeId
+        val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
+        val running = display?.refreshRate?.takeIf { it > 1f }
+        val hz = listOfNotNull(requested, running).minOrNull() ?: 60f
         val modes = display?.supportedModes.orEmpty().filter { it.refreshRate > 1f }
-        val hz = modes.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
-            ?: display?.refreshRate ?: 60f
         // A reported rate with no matching mode cannot be presented; pacing to it makes the
         // compositor hold every frame for a vsync that never comes.
         val snapped = modes.filter { it.refreshRate <= hz + 0.5f }.maxByOrNull { it.refreshRate }?.refreshRate
@@ -1778,14 +1779,13 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private fun outputFpsLimit(): Int = GlassesRendering.fpsLimit(SessionState.fpsLimit, mirrorRefreshLimit())
 
     private fun applyOutputPacing() {
-        val hz = refreshHz()
-        val plan = pacePlan(hz)
-        val output = plan.outputHz.takeIf { it > 1f }?.toInt() ?: 0
-        Log.i(TAG, "perf: " + PerfMode.apply(this, output, mirrorRefreshLimit()))
-        SessionState.fpsLimit = plan.guestFps
-        SessionState.outputHz = plan.outputHz
+        Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))
         if (CompositorHost.isStarted) {
+            val hz = refreshHz()
+            val plan = pacePlan(hz)
             val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
+            SessionState.fpsLimit = plan.guestFps
+            SessionState.outputHz = plan.outputHz
             CompositorHost.updatePacing(hz, plan.guestFps, plan.outputHz)
             notePacing(hz, plan)
             pushCardboard(activeCardboard)
