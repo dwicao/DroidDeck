@@ -9,7 +9,7 @@
 
 DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton.
 
-> **This fork.** This tree carries the 25 fork commits through `7dbf0842` plus the upstream 0.5.0 merge. The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes.
+> **This fork.** This tree carries the 25 fork commits through `7dbf0842`, the upstream 0.5.0 merge, and the 0.5.1 default-storage update. The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes.
 
 <p align="center"><a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a></p>
 
@@ -43,7 +43,7 @@ remain the reliable ways to keep a higher ceiling.
 
 ## Fork changes
 
-The 25 fork-only commits through `7dbf0842` fall into four groups; this build merges them with upstream 0.5.0. The latest build is **0.5.0 (21)**; the complete list is at the end of this section.
+The 25 fork-only commits through `7dbf0842` fall into four groups; this build merges them with upstream 0.5.0 and adds a configurable default storage target. The latest build is **0.5.1 (22)**; the complete list is at the end of this section.
 
 ### Session pacing, GPU, and thermals
 
@@ -95,12 +95,20 @@ The 25 fork-only commits through `7dbf0842` fall into four groups; this build me
   its catalog; a short install is named with the missing bundle count instead of looking like a game
   that simply exited.
 
+### Storage
+
+- **Setup > Storage > Default storage** chooses where new store installs go: **Internal storage**,
+  **External storage**, or **Ask every time**. The Epic Games Launcher uses the same choice for its
+  install directory.
+- Existing games stay where they are, and Steam libraries keep their own **Game storage** setting.
+  If the selected external storage is disconnected, DroidDeck falls back to the normal target prompt.
+
 ### Build and documentation
 
 - CI hosts the Debian bullseye image used by the preload build from a release rather than Docker Hub,
   avoiding the rate limit that failed the build.
 - Documentation and tests in the range cover the pacing table, GPU ceiling, chosen-limit note,
-  short-install record, and the 0.4.11 field session. This release is 0.5.0 (21).
+  short-install record, and the 0.4.11 field session. This release is 0.5.1 (22).
 
 <details>
 <summary><strong>All 25 commits through <code>7dbf0842</code></strong></summary>

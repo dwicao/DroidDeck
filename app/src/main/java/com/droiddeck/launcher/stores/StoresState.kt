@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.stores.download.DownloadEntry
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -198,12 +199,21 @@ object StoresState {
         askForNotifications(context)
         if (isUnfinished(item)) { install(context, item); return }
         val targets = StoreInstallRoot.targets(context)
-        if (targets.size > 1) pendingInstall = item else install(context, item, targets.first().root)
+        val preferred = StoreInstallRoot.defaultTarget(context)
+        when {
+            preferred != null -> {
+                SessionPrefs.setStoresInstallTarget(context, preferred.root.absolutePath)
+                install(context, item, preferred.root)
+            }
+            targets.size > 1 -> pendingInstall = item
+            else -> install(context, item, targets.first().root)
+        }
     }
 
     fun install(context: Context, item: CatalogItem, root: java.io.File? = null) {
         val app = context.applicationContext
-        val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, root ?: StoreInstallRoot.installRoot(app))
+        val targetRoot = root ?: StoreInstallRoot.defaultTarget(app)?.root ?: StoreInstallRoot.installRoot(app)
+        val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, targetRoot)
         val target = folder.parentFile!!.parentFile!!
         val check = StoreInstallRoot.checkStorage(app, item, target)
         if (!check.enough) {
