@@ -737,6 +737,16 @@ class SessionService : Service() {
         val extra = extraEnv() + runCatching { com.droiddeck.launcher.agent.AgentEnv.beginSession(this, agentSessionId) }
             .onFailure { Log.w(TAG, "agent environment skipped", it) }
             .getOrDefault(emptyList())
+<<<<<<< HEAD
+=======
+        if (gen != sessionGen || !SessionState.running) {
+            // The stop may have run its cleanup before beginSession took the lock.
+            agentEnvSessionIds.remove(gen, agentSessionId)
+            runCatching { com.droiddeck.launcher.agent.AgentEnv.endSession(this, agentSessionId) }
+                .onFailure { Log.w(TAG, "clearing agent overrides for session $gen", it) }
+        }
+        val extra = extraEnv() + agentEnvironment
+>>>>>>> be0b77e6 (fix: a session stopped while it starts no longer leaves its agent overrides active)
         if (extra.none { it.startsWith("TU_DEBUG=") }) guest.add("$GAME_TU_DEBUG=" + (tuOverride ?: if (tuDriver) "sysmem" else ""))
         extra.forEach { guest.add(it) }
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)?.let { guest.add("${com.droiddeck.launcher.gpu.TpUbwcHint.ENV}=$it") }
