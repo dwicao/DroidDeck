@@ -1,5 +1,6 @@
 package com.droiddeck.launcher.session
 
+import com.droiddeck.launcher.core.AddonPack
 import android.content.Context
 import android.os.Environment
 import android.util.Log
@@ -82,8 +83,10 @@ object SessionFiles {
             "usr/local/bin/droiddeck-x64-arm-webhelper" to "usr/local/bin/droiddeck-x64-arm-webhelper",
             "usr/local/bin/droiddeck-x64-webhelper" to "usr/local/bin/droiddeck-x64-webhelper",
             "usr/local/bin/droiddeck-steamvr" to "usr/local/bin/droiddeck-steamvr",
+            "usr/local/bin/droiddeck-pipewire" to "usr/local/bin/droiddeck-pipewire",
             "usr/local/bin/droiddeck-steamvr-settings" to "usr/local/bin/droiddeck-steamvr-settings",
             "usr/local/bin/droiddeck-steamvr-game" to "usr/local/bin/droiddeck-steamvr-game",
+            "usr/local/bin/droiddeck-steamvr-flat" to "usr/local/bin/droiddeck-steamvr-flat",
             "usr/local/bin/droiddeck-bwrap" to "usr/local/bin/droiddeck-bwrap",
             "usr/local/bin/droiddeck-flatpak" to "usr/local/bin/droiddeck-flatpak",
             "usr/local/bin/droiddeck-flatpak-setup" to "usr/local/bin/droiddeck-flatpak-setup",
@@ -137,10 +140,9 @@ object SessionFiles {
         val optional = (arrayOf(
             "usr/local/bin/gamescope" to "usr/local/bin/gamescope",
             "usr/local/lib/droiddeck/uruntime" to "usr/local/lib/droiddeck/uruntime",
+            "usr/local/lib/droiddeck-pipewire.tzst" to "usr/local/lib/droiddeck-pipewire.tzst",
             "usr/local/share/licenses/uruntime/LICENSE" to "usr/local/share/licenses/uruntime/LICENSE",
-        ) + listOf("xodus-cli", "xodus-service", "LICENSE.xodus", "LICENSE.nexus", "LICENSE.LGPL-2.1", "LICENSE.nghttp2", "backend.lock.json", "runtime.lock.json", "version",
-            "windows/xgameruntime.dll", "windows/winhttp.dll", "windows/windows.web.dll", "windows/twinapi.appcore.dll", "windows/libnghttp2.dll")
-            .map { "usr/local/lib/droiddeck-xbox/$it" to "usr/local/lib/droiddeck-xbox/$it" } + mangoapp + listOf("comet", "GalaxyCommunication.exe", "update-permissions.exe", "LICENSE", "version").map { "usr/local/lib/droiddeck-comet/$it" to "usr/local/lib/droiddeck-comet/$it" } + msitools.map { it to it } + vr + fexPreloads).filter { (asset, _) ->
+        ) + mangoapp + msitools.map { it to it } + vr + fexPreloads).filter { (asset, _) ->
             val dir = asset.substringBeforeLast('/')
             runCatching { context.assets.list("linuxfs/$dir")?.contains(asset.substringAfterLast('/')) == true }.getOrDefault(false)
         }
@@ -174,7 +176,9 @@ object SessionFiles {
             "i386-windows/winedirectaudio.drv",
             "version.txt",
         )
-        for (set in DIRECTAUDIO_SETS) for (relative in directAudio) {
+        val directAudioPack = AddonPack.DIRECTAUDIO.takeIf { it.installed(context) }?.dir(context)
+        if (directAudioPack == null) Log.w(TAG, "DirectAudio pack is not installed; drivers not staged")
+        if (directAudioPack != null) for (set in DIRECTAUDIO_SETS) for (relative in directAudio) {
             val key = "$DIRECTAUDIO_DIR/$set/lib/wine/$relative"
             val target = File(root, key)
             if (ledger.current(key, target)) continue
@@ -182,7 +186,7 @@ object SessionFiles {
             var installed = false
             try {
                 target.parentFile?.mkdirs()
-                context.assets.open("directaudio/$set/$relative").use { input ->
+                File(directAudioPack, "$set/$relative").inputStream().use { input ->
                     staged.outputStream().use { output -> FileUtils.copy(input, output) }
                 }
                 installed = staged.setReadable(true, false) && staged.renameTo(target)

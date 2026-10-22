@@ -129,6 +129,10 @@ object StoresState {
 
     fun installedGame(store: Store, id: String): InstalledStoreGame? = installed.firstOrNull { it.sidecar.store == store && it.sidecar.id == id }
 
+    fun detailItem(store: Store, id: String): CatalogItem? = detailCatalogItem(
+        store, id, library[store].orEmpty(), found[store].orEmpty(), shelves[store],
+    )
+
     fun open(context: Context, store: Store, force: Boolean = false) {
         val backend = backends[store] ?: return
         val app = context.applicationContext
@@ -201,40 +205,42 @@ object StoresState {
         val targets = StoreInstallRoot.targets(context)
         val preferred = StoreInstallRoot.defaultTarget(context)
         val wantedExternal = SessionPrefs.defaultStorage(context) == SessionPrefs.DEFAULT_STORAGE_EXTERNAL
+        if (preferred != null) SessionPrefs.setStoresInstallTarget(context, preferred.root.absolutePath)
         when {
-            preferred != null -> {
-                SessionPrefs.setStoresInstallTarget(context, preferred.root.absolutePath)
+            preferred != null && !StoreLanguage.selectable(item.store) -> {
                 install(context, item, preferred.root)
             }
-            targets.size > 1 || wantedExternal -> pendingInstall = item
+            targets.size > 1 || wantedExternal || StoreLanguage.selectable(item.store) -> pendingInstall = item
             else -> install(context, item, targets.first().root)
         }
     }
 
-    fun install(context: Context, item: CatalogItem, root: java.io.File? = null) {
+    fun install(context: Context, item: CatalogItem, root: java.io.File? = null, language: String? = null) {
         val app = context.applicationContext
         val targetRoot = root ?: StoreInstallRoot.defaultTarget(app)?.root ?: StoreInstallRoot.installRoot(app)
         val folder = StoreInstallRoot.folderFor(app, item.store, item.id, item.title, targetRoot)
         val target = folder.parentFile!!.parentFile!!
-        val check = StoreInstallRoot.checkStorage(app, item, target)
+        val code = language?.takeIf { it.isNotBlank() } ?: StoreLanguage.preferredCode(app)
+        val tagged = if (StoreLanguage.selectable(item.store)) item.copy(extra = item.extra + (StoreLanguage.EXTRA to code)) else item
+        val check = StoreInstallRoot.checkStorage(app, tagged, target)
         if (!check.enough) {
             val errorMsg = check.errorMessage ?: app.getString(com.droiddeck.launcher.R.string.stores_storage_insufficient, formatBytes(check.requiredBytes), formatBytes(check.availableBytes))
             val entry = com.droiddeck.launcher.stores.download.DownloadEntry(
-                item.store,
-                item.id,
-                item.title,
-                cover = item.imageUrl,
-                bytesTotal = item.sizeBytes,
+                tagged.store,
+                tagged.id,
+                tagged.title,
+                cover = tagged.imageUrl,
+                bytesTotal = tagged.sizeBytes,
                 location = StoreInstallRoot.labelFor(app, folder)
             )
-            com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
+            com.droiddeck.launcher.stores.download.SavedQueue.remember(app, tagged, target)
             com.droiddeck.launcher.stores.download.DownloadQueue.recordFailed(app, entry, errorMsg) {
-                install(app, item, target)
+                install(app, tagged, target, code)
             }
             return
         }
-        com.droiddeck.launcher.stores.download.SavedQueue.remember(app, item, target)
-        backends[item.store]?.install(app, item, target) ?: logLine("${item.store.label}: this build cannot install yet")
+        com.droiddeck.launcher.stores.download.SavedQueue.remember(app, tagged, target)
+        backends[tagged.store]?.install(app, tagged, target) ?: logLine("${tagged.store.label}: this build cannot install yet")
     }
 
     val uninstalling = mutableStateMapOf<String, Float>()
