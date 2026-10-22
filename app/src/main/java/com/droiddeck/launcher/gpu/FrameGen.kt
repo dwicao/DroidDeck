@@ -50,6 +50,13 @@ object FrameGen {
         else -> context.getString(R.string.frame_gen_off)
     }
 
+    /** Whether [apply] can arm what is chosen without fetching or building anything first. */
+    fun ready(context: Context): Boolean = when (engine(context)) {
+        ENGINE_LSFG -> Lossless.cacheFile(context)?.isFile == true
+        ENGINE_DDFG -> true
+        else -> false
+    }
+
     fun apply(context: Context, refreshHz: Float): String? {
         val mode = mode(context)
         when (mode.engine) {

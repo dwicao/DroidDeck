@@ -25,4 +25,42 @@ class DeviceReportPerfTest {
         assertEquals("60 Hz", DeviceReport.refreshModesSummary(listOf(59.94f)))
         assertEquals("", DeviceReport.refreshModesSummary(emptyList()))
     }
+
+    @Test fun aSessionDisplayIsNamedWithItsOwnRates() {
+        assertEquals(
+            "id 48 · HDMI screen · 75.00 Hz · modes 75 Hz, 60 Hz",
+            DeviceReport.sessionDisplayText(48, "HDMI screen", 75f, listOf(60f, 75f)),
+        )
+    }
+
+    @Test fun aHeldClockIsReadBesideThePlatformsCeiling() {
+        assertEquals(
+            "475 MHz (platform level 4 allows 475 MHz; hardware top 719 MHz)",
+            DeviceReport.gpuClockText(475, 719, 475, 4),
+        )
+        assertEquals("719 MHz (top level)", DeviceReport.gpuClockText(719, 719, 719, 0))
+        assertEquals(
+            "475 MHz (below the ceiling 719 MHz)",
+            DeviceReport.gpuClockText(475, 719, 719, 0),
+        )
+        assertEquals(
+            "295 MHz (platform level 7 allows 295 MHz; hardware top 719 MHz)",
+            DeviceReport.gpuClockText(295, 719, 295, 7),
+        )
+        assertEquals(
+            "475 MHz (platform level 4 allows 475 MHz)",
+            DeviceReport.gpuClockText(475, null, 475, 4),
+        )
+    }
+
+    @Test fun aClockWithNoCeilingToCompareIsNotReported() {
+        assertEquals(null, DeviceReport.gpuClockText(null, 719, 719, 0))
+        assertEquals(null, DeviceReport.gpuClockText(475, 719, null, 4))
+        assertEquals("475 MHz (below the ceiling 719 MHz)", DeviceReport.gpuClockText(475, null, 719, 0))
+    }
+
+    @Test fun aDisplayWithoutANameOrModesStillReads() {
+        assertEquals("id 0 · unnamed · 60.00 Hz · modes not reported", DeviceReport.sessionDisplayText(0, null, 60f, emptyList()))
+        assertEquals("id 0 · unnamed · 60.00 Hz · modes not reported", DeviceReport.sessionDisplayText(0, "  ", 60f, emptyList()))
+    }
 }

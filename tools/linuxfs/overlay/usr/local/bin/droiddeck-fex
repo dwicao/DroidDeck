@@ -11,6 +11,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 
 HOME = os.environ.get("HOME") or "/root"
 STEAM_ROOT = os.path.join(HOME, ".local", "share", "Steam")
@@ -20,6 +21,7 @@ CONFIG_DIR = os.path.join(STATE, "config")
 DATA_DIR = os.path.join(STATE, "data")
 CACHE_DIR = os.path.join(HOME, ".cache", "droiddeck-fex")
 STATUS_FILE = os.path.join(STATE, "status.json")
+DIAGNOSE_FILE = os.path.join(STATE, "diagnose.json")
 WANTED = os.path.join(HOME, ".config", "droiddeck", "fex-wanted")
 GAME_ENVIRONMENT = os.path.join(HOME, ".config", "droiddeck", "game-environment.json")
 BIN_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -28,9 +30,12 @@ URUNTIME = "/usr/local/lib/droiddeck/uruntime"
 HOST_PRELOAD = "/etc/ld.so.preload"
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
+SOLDIER_APPID = "1391110"
 SLR4_APPID = "4183110"
-INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper", SLR4_APPID: "SteamLinuxRuntime_4"}
+INSTALL_DIRS = {FEX_APPID: "FEX-Emu", SNIPER_APPID: "SteamLinuxRuntime_sniper",
+                SOLDIER_APPID: "SteamLinuxRuntime_soldier", SLR4_APPID: "SteamLinuxRuntime_4"}
 RUNTIMES = {SNIPER_APPID: ("sniper_platform_", "Steam Linux Runtime 3.0 (sniper"),
+            SOLDIER_APPID: ("soldier_platform_", "Steam Linux Runtime 3.0 (soldier"),
             SLR4_APPID: ("steamrt4_platform_", "Steam Linux Runtime 4.0 (steamrt4")}
 MARKER = ".droiddeck-fex"
 LAYOUT = 1
@@ -62,6 +67,10 @@ SCAN_DEPTH = 4
 SCAN_LIMIT = 4000
 MODES = ("auto", "on", "off")
 STEAM_VERBS = ("run", "waitforexitandrun")
+TUNEABLES = "glibc.pthread.rseq=0:glibc.malloc.top_pad=16777216"
+COMPAT_TOOL = "fex-compat-tool"
+COMPAT_TOOL_PATHS = (COMPAT_TOOL, "files/" + COMPAT_TOOL, "usr/" + COMPAT_TOOL)
+GUEST_PROGRAMS = ("bin/true", "usr/bin/true", "bin/echo", "usr/bin/env")
 ESCAPE = re.compile(rb"\\([0-7]{3})")
 DEVICE_FONTS = "/usr/local/share/fonts/android"
 FONT_RULES = "/etc/fonts/conf.d/66-droiddeck-device-fonts.conf"
@@ -181,14 +190,18 @@ def platform_version(path):
 
 
 def runtime_platform(app=SNIPER_APPID):
+    chosen = app
     runtime = app_dir(app)
+    if not runtime and app == SNIPER_APPID:
+        chosen = SOLDIER_APPID
+        runtime = app_dir(SOLDIER_APPID)
     if not runtime:
         return None
     try:
         entries = os.listdir(runtime)
     except OSError:
         return None
-    platforms = [os.path.join(runtime, entry) for entry in entries if entry.startswith(RUNTIMES[app][0])]
+    platforms = [os.path.join(runtime, entry) for entry in entries if entry.startswith(RUNTIMES[chosen][0])]
     platforms = [path for path in platforms if os.path.isdir(os.path.join(path, "files"))
                  and os.path.isfile(os.path.join(path, "usr-mtree.txt.gz"))]
     return max(platforms, key=platform_version, default=None)
@@ -471,7 +484,7 @@ def prepare(app=SNIPER_APPID):
         install_preloads(root)
         install_fonts(root)
         provider = None
-        if app == SNIPER_APPID:
+        if app in (SNIPER_APPID, SOLDIER_APPID):
             provider = graphics_platform()
             if provider and materialize(provider):
                 say("prepared %s for the x86 runtime's C and C++ libraries" % os.path.basename(provider))
@@ -778,6 +791,65 @@ def extract(image):
     return 1
 
 
+def compat_environment(env):
+    """The environment Valve's fex-compat-tool runs with: whatever the session set, minus the
+    tunables an x86 guest cannot survive, plus FEX logging when the debug switch is on."""
+    result = dict(env)
+    result.pop("GLIBC_TUNABLES", None)
+    if result.get("BL_FEX_VERBOSE") == "1":
+        result["STEAM_FEX_LOG"] = "1"
+        result["FEX_SILENTLOG"] = "0"
+        result["FEX_OUTPUTLOG"] = "stderr"
+    return result
+
+
+def compat_tool(args):
+    """Steam's own fex-compat-tool, run from a tool directory DroidDeck owns, so that the
+    session's GLIBC_TUNABLES never reaches the x86 runtime or the program under it."""
+    tool = app_dir(FEX_APPID)
+    for name in COMPAT_TOOL_PATHS:
+        path = os.path.join(tool or "/", name)
+        if os.access(path, os.X_OK):
+            os.execve(path, [path] + list(args), compat_environment(os.environ))
+    say("Steam's %s is not installed (Steam app %s); the game cannot start" % (COMPAT_TOOL, FEX_APPID))
+    return 127
+
+
+def run_probe(command, env):
+    try:
+        done = subprocess.run(command, env=env, capture_output=True, text=True, timeout=120)
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return {"status": None, "error": str(error)}
+    return {"status": done.returncode, "stderr": done.stderr[-500:], "stdout": done.stdout[-500:]}
+
+
+def diagnose():
+    """Runs the smallest x86 program the runtime holds, once with the session's
+    GLIBC_TUNABLES and once without, and writes both results beside status.json. The
+    difference says whether the failing sbrk() is FEX's own or the guest loader's."""
+    checked = time.strftime("%Y-%m-%d %H:%M:%S")
+    fex = prepare()
+    result = {"checked": checked, "fex": fex["bin"] if fex else None, "rootfs": fex.get("rootfs") if fex else None}
+    guest = None
+    if fex:
+        for name in GUEST_PROGRAMS:
+            path = os.path.join(fex.get("rootfs") or "/", name)
+            if os.path.isfile(path) and elf_arch(path) in X86.values():
+                guest = path
+                break
+    result["guest"] = guest
+    if fex and guest:
+        base = guest_environment(fex, dict(os.environ))
+        set_tunables = dict(base, GLIBC_TUNABLES=os.environ.get("GLIBC_TUNABLES") or TUNEABLES)
+        result["fex_start"] = run_probe([fex["bin"]], set_tunables)
+        result["guest_with_tunables"] = run_probe([fex["bin"], guest], set_tunables)
+        result["guest_without_tunables"] = run_probe([fex["bin"], guest], base)
+        say("diagnose: %s under %s with tunables %s, without %s" % (
+            guest, fex["bin"], result["guest_with_tunables"].get("status"), result["guest_without_tunables"].get("status")))
+    write_if_changed(DIAGNOSE_FILE, json.dumps(result, indent=2, sort_keys=True) + "\n")
+    return 0 if fex and guest else 1
+
+
 def parse_run(args):
     mode, decide = os.environ.get("DROIDDECK_FEX", "auto"), None
     while args and args[0].startswith("--"):
@@ -799,7 +871,8 @@ def parse_run(args):
 
 def main(argv):
     if not argv:
-        say("usage: droiddeck-fex steam VERB CMD... | run [--mode auto|on|off] [--for PATH] [--] CMD... | needs PATH | extract IMAGE | prepare | status")
+        say("usage: droiddeck-fex steam VERB CMD... | run [--mode auto|on|off] [--for PATH] [--] CMD... | "
+            "compat VERB CMD... | needs PATH | extract IMAGE | prepare | diagnose | status")
         return 2
     action, args = argv[0], list(argv[1:])
     if action == "steam":
@@ -811,6 +884,10 @@ def main(argv):
         if not command:
             return 2
         return launch(command, game_environment(dict(os.environ)), os.environ.get("DROIDDECK_FEX", "auto"))
+    if action == "compat":
+        if not args:
+            return 2
+        return compat_tool(args)
     if action == "run":
         try:
             mode, decide, command = parse_run(args)
@@ -832,6 +909,8 @@ def main(argv):
         return extract(args[0])
     if action == "prepare":
         return 0 if prepare() else 1
+    if action == "diagnose":
+        return diagnose()
     if action == "status":
         with locked():
             status = describe(fex_install(), runtime_platform(), graphics_platform())

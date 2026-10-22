@@ -44,6 +44,7 @@ fun PerformancePage(
     fsyncFirst: Boolean,
     gamescopeRealtime: Boolean,
     gpuClockPin: Boolean,
+    thermalGuard: Boolean,
     prootNoSeccomp: Boolean,
     prootFastPath: Boolean,
     guestHostname: String,
@@ -59,6 +60,7 @@ fun PerformancePage(
     onFsyncFirst: (Boolean) -> Unit,
     onGamescopeRealtime: (Boolean) -> Unit,
     onGpuClockPin: (Boolean) -> Unit,
+    onThermalGuard: (Boolean) -> Unit,
     onProotNoSeccomp: (Boolean) -> Unit,
     onProotFastPath: (Boolean) -> Unit,
     onGuestHostname: (String) -> Unit,
@@ -119,6 +121,11 @@ fun PerformancePage(
                 host, "gpuclock", stringResource(R.string.perf_gpuclock),
                 stringResource(R.string.perf_gpuclock_hint),
                 gpuClockPin, onChange = onGpuClockPin,
+            )
+            ToggleRow(
+                host, "thermalguard", stringResource(R.string.perf_thermalguard),
+                stringResource(R.string.perf_thermalguard_hint),
+                thermalGuard, enabled = gpuClockPin, onChange = onThermalGuard,
             )
         }
         SettingsGroup(stringResource(R.string.perf_fixes)) {

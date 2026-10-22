@@ -104,6 +104,10 @@ class BatteryComponent(val dir: File, private val vpowerDir: File) : SessionPart
                 put(File(bat, "uevent"), uevent.toString())
             }
             val plugged = (sticky?.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) ?: 0) != 0
+            BatterySnapshot.currentMa = (currentNowUa / 1000L).toInt()
+            BatterySnapshot.powerMw = (powerNowUw / 1000L).toInt()
+            BatterySnapshot.tempC = if (tempDeci in 1..1000) tempDeci / 10.0 else null
+            BatterySnapshot.plugged = plugged
             vpowerDir.mkdirs()
             val vpower = linkedMapOf(
                 "ac_status" to if (plugged) "Connected" else "Disconnected",

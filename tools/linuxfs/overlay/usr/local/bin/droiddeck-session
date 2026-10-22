@@ -100,7 +100,23 @@ collect_steam_logs() {
   fi
   local fex_state=$HOME/.local/share/droiddeck-fex
   if [ -d "$fex_state" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-fex" 2>/dev/null; then
-    cp "$fex_state/status.json" "$fex_state/config/Config.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
+    cp "$fex_state/status.json" "$fex_state/config/Config.json" "$fex_state/diagnose.json" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
+  fi
+  local tool_log
+  for tool_log in /tmp/fex-compat-tool-*.log; do
+    [ -f "$tool_log" ] && cp "$tool_log" "$BL_DEBUG_DIR/droiddeck-fex/" 2>/dev/null
+  done
+  local games_state=$HOME/.local/share/droiddeck-games
+  if [ -d "$games_state" ] && mkdir -p "$BL_DEBUG_DIR/droiddeck-games" 2>/dev/null; then
+    cp "$games_state"/*.json "$BL_DEBUG_DIR/droiddeck-games/" 2>/dev/null
+  fi
+  local manifest
+  if [ -d "$steam_root/steamapps" ] && mkdir -p "$BL_DEBUG_DIR/steamapps" 2>/dev/null; then
+    for manifest in "$steam_root"/steamapps/appmanifest_*.acf; do
+      [ -f "$manifest" ] || continue
+      grep -q '"installdir"[[:space:]]*"DroidDeck-' "$manifest" 2>/dev/null && cp "$manifest" "$BL_DEBUG_DIR/steamapps/" 2>/dev/null
+    done
+    ls -1 "$steam_root/steamapps/downloading" > "$BL_DEBUG_DIR/steamapps/downloading.txt" 2>/dev/null
   fi
   echo "== steam logs copied to $BL_DEBUG_DIR/steam"
 }
@@ -503,6 +519,9 @@ case $mode in
     droiddeck-steam-library "$steam_root" || true
     step "setting up the ARM64 Proton compatibility tool"
     steam-compatibility "$steam_root" || true
+    step "preparing the x86 runtime for FEX"
+    /usr/local/bin/droiddeck-fex prepare >/dev/null 2>&1 || true
+    /usr/local/bin/droiddeck-fex diagnose >/dev/null 2>&1 || true
     if [ -z "${BL_DESKTOP:-}" ] && [ "${BL_STEAM_UI:-}" != desktop ]; then
       droiddeck-steam-ui-scale "$steam_root" "${BL_WIDTH:-1280}" "${BL_HEIGHT:-720}" || true
     fi
@@ -818,16 +837,44 @@ BUSCONF
     fi
     export STEAMOS_STEAM_SHUTDOWN_SENTINEL="$HOME/.bl-steam-shutdown"
     export STEAMOS_STEAM_REBOOT_SENTINEL="$HOME/.bl-steam-reboot"
-    if ! pgrep -f 'steamwebhelper|steamrtarm64/steam|steamrt64/steam' >/dev/null 2>&1; then
-      _stale=""
-      for _f in "$steam_root/.crash" "$steam_root/steam.pid" \
-                "$steam_root/config/htmlcache/SingletonLock" "$steam_root/config/htmlcache/SingletonCookie" \
-                "$steam_root/config/htmlcache/SingletonSocket"; do
-        if [ -e "$_f" ] || [ -L "$_f" ]; then rm -f "$_f" && _stale="$_stale ${_f##*/}"; fi
+    # A client left by a session that ended without reaching its own shutdown - Android killed it
+    # first - still holds the singletons. The launch below then finds it, forwards its arguments
+    # to it and exits, and the session is over before the client is on screen. End those first.
+    # Zombies are excluded: one that has already exited still reads as running to pgrep, and
+    # waiting on it would put a five second pause in front of every session start.
+    _bl_live() {
+      local _p _s
+      for _p in $(pgrep -f 'steamwebhelper|steamrtarm64/steam|steamrt64/steam' 2>/dev/null); do
+        _s=$(awk '{print $3}' "/proc/$_p/stat" 2>/dev/null)
+        [ "$_s" = Z ] || printf '%s ' "$_p"
       done
-      [ -n "$_stale" ] && echo "== steam: cleared what an earlier session left:$_stale"
-      unset _stale _f
+    }
+    _bl_stray=$(_bl_live)
+    if [ -n "${_bl_stray// / }" ]; then
+      echo "== steam: ending a client an earlier session left running:${_bl_stray% }"
+      # shellcheck disable=SC2086 # the list is deliberately split into separate pids
+      kill ${_bl_stray// / } 2>/dev/null
+      for _bl_wait in 1 2 3 4 5 6 7 8 9 10; do
+        _bl_stray=$(_bl_live)
+        [ -z "${_bl_stray// / }" ] && break
+        sleep 0.5
+      done
+      _bl_stray=$(_bl_live)
+      if [ -n "${_bl_stray// / }" ]; then
+        # shellcheck disable=SC2086
+        kill -9 ${_bl_stray// / } 2>/dev/null
+        sleep 0.5
+      fi
+      unset _bl_stray _bl_wait
     fi
+    _stale=""
+    for _f in "$steam_root/.crash" "$steam_root/steam.pid" \
+              "$steam_root/config/htmlcache/SingletonLock" "$steam_root/config/htmlcache/SingletonCookie" \
+              "$steam_root/config/htmlcache/SingletonSocket"; do
+      if [ -e "$_f" ] || [ -L "$_f" ]; then rm -f "$_f" && _stale="$_stale ${_f##*/}"; fi
+    done
+    [ -n "$_stale" ] && echo "== steam: cleared what an earlier session left:$_stale"
+    unset _stale _f
     steam_channel=steamdeck_publicbeta
     _bl_lang=()
     [ -n "${BL_STEAM_LANGUAGE:-}" ] && _bl_lang=(-language "$BL_STEAM_LANGUAGE")
@@ -1164,6 +1211,11 @@ BUSCONF
         wait "$desktop_ui_pid" 2>/dev/null || true
       fi
       echo "== steam exited rc=$rc"
+      # A client that finds another one up forwards its arguments and exits cleanly, which reads
+      # as a session that ended for no reason. Say which of the two it was.
+      if [ "$rc" = 0 ] && [ "$steam_ran" -lt 20 ]; then
+        echo "== steam: exited at once - a client from an earlier session was still running"
+      fi
       collect_steam_logs
       if [ -f "$HOME/.config/droiddeck/fex-wanted" ] && [ -x /usr/local/bin/droiddeck-fex ]; then
         /usr/local/bin/droiddeck-fex status >/dev/null 2>&1 || true

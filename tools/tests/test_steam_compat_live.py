@@ -374,6 +374,23 @@ class ReconcileTest(unittest.TestCase):
         finally:
             COMPAT["native_targets"] = original_native_targets
 
+    def test_an_x86_linux_title_replaces_the_clients_native_guess_live(self):
+        (self.state / "state.json").write_text(json.dumps({"default": TOOL, "auto": {}}))
+        original_native_targets = COMPAT["native_targets"]
+        COMPAT["native_targets"] = lambda _root, apps: {
+            app: COMPAT["X86_TOOL"] for app in apps if app == "10"
+        }
+        try:
+            for guess in ("native", ""):
+                page = FakePage({"0": TOOL, "10": guess, "11": TOOL}, [TOOL, TOOL_11, COMPAT["X86_TOOL"]])
+                state = self.reconcile(page)
+                self.assertEqual(page.sets, [("10", COMPAT["X86_TOOL"])], guess)
+                self.assertEqual(page.mapping["10"], COMPAT["X86_TOOL"])
+                self.assertEqual(state["auto"], {"10": COMPAT["X86_TOOL"]})
+                self.assertEqual(state["native_choices"], [])
+        finally:
+            COMPAT["native_targets"] = original_native_targets
+
     def test_factorio_native_choice_survives_inherited_live_selection_and_restart(self):
         app = "427520"
         (self.steam / ("steamapps/appmanifest_%s.acf" % app)).write_text("")

@@ -32,8 +32,9 @@ object CompositorHost {
         outputHeight: Int,
         refreshHz: Float,
         fpsLimit: Int,
+        outputHz: Float,
     ): Boolean {
-        pace(refreshHz, fpsLimit)
+        pace(refreshHz, fpsLimit, outputHz)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
             attached = surface
@@ -51,16 +52,20 @@ object CompositorHost {
         return true
     }
 
-    private fun pace(refreshHz: Float, fpsLimit: Int) {
+    private fun pace(refreshHz: Float, fpsLimit: Int, outputHz: Float) {
         WaylandCompositor.nativeSetFpsLimit(fpsLimit)
-        WaylandCompositor.nativeSetLayerFrameRate(if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
+        WaylandCompositor.nativeSetLayerFrameRate(outputHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz
     }
 
     @Synchronized
-    fun updatePacing(refreshHz: Float, fpsLimit: Int) {
-        if (started) pace(refreshHz, fpsLimit)
+    fun updatePacing(refreshHz: Float, fpsLimit: Int, outputHz: Float) {
+        if (started) pace(refreshHz, fpsLimit, outputHz)
+    }
+
+    fun pace(fpsLimit: Int, outputHz: Float) {
+        pace(SessionState.refreshHz, fpsLimit, outputHz)
     }
 
     @Synchronized

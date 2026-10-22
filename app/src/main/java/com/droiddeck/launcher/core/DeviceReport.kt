@@ -18,9 +18,11 @@ import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.session.EsyncPacks
+import com.droiddeck.launcher.session.GpuClockPin
 import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
+import com.droiddeck.launcher.session.thermalCelsius
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,6 +38,191 @@ object DeviceReport {
             Log.w(TAG, "could not write $target", e)
         }
     }
+
+    /**
+     * Lines added to a written report once the session's surface is up, which is after the report is
+     * first written: what the guest is asked to draw, what the layer is sampled at, which display it
+     * is on, where the GPU's clock sits beside the ceiling the platform allows, and whether the pin
+     * is holding it. The pacing numbers are only known here (the display's mode settles after the
+     * first frame), and the block is written again when they change and once more when the session
+     * ends, so the numbers are the ones the session actually ran at.
+     */
+    fun appendPacing(
+        context: Context,
+        target: File,
+        displayText: String?,
+        displayHz: Float,
+        guestFps: Int,
+        outputHz: Float,
+        note: String? = null,
+    ) {
+        val guest = if (guestFps > 0) "$guestFps fps" else "follows the panel"
+        val layer = if (outputHz > 1f) hz(outputHz) else "unknown"
+        val block = buildString {
+            append(BLOCK_MARK).append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())).append(" --\n")
+            line(this, "Session pacing", "guest $guest · layer $layer · display ${hz(displayHz)}" +
+                " · ${com.droiddeck.launcher.gpu.FrameGen.label(context)}")
+            displayText?.let { line(this, "Session display", it) }
+            gpuClockText(kgslNumber("clock_mhz"), kgslTop(), kgslNumber("max_clock_mhz"), kgslNumber("thermal_pwrlevel"))
+                ?.let { line(this, "GPU clock", it) }
+            line(this, "GPU clock pin", pinText())
+            gameModePacing(context)?.let { line(this, "Game Mode", it) }
+            if (note != null) line(this, "Pacing note", note)
+        }
+        writeBlock(target, block)
+    }
+
+    /**
+     * Replaces the block this wrote before instead of adding another: a session notes its pacing
+     * several times, and a report that repeated the block for each would bury the rest. Only the
+     * last block is ours, so the file is cut at its marker.
+     */
+    private fun writeBlock(target: File, block: String) {
+        try {
+            val old = if (target.isFile) target.readText() else ""
+            val cut = old.lastIndexOf(BLOCK_MARK)
+            val head = (if (cut >= 0) old.substring(0, cut) else old).trimEnd()
+            target.writeText((if (head.isEmpty()) "" else head + "\n\n") + block)
+        } catch (e: Exception) {
+            Log.w(TAG, "could not append pacing to $target", e)
+        }
+    }
+
+    private fun pinText(): String {
+        if (GpuClockPin.pinned) {
+            val refused = (if (GpuClockPin.levelRefused != null) "; the level node refused: ${GpuClockPin.levelRefused}" else "")
+            if (GpuClockPin.suspended) {
+                return "released by the thermal guard (${GpuClockPin.lever}); the hold returns when headroom recovers$refused"
+            }
+            return "held at its top (${GpuClockPin.lever})$refused"
+        }
+        if (GpuClockPin.justStopped) return "held during the session, released at stop"
+        return "not held"
+    }
+
+    /**
+     * The GPU's clock beside the ceiling the platform allows: the number a report is read for when
+     * a held clock looks low. `thermal_pwrlevel` is the index into `freq_table_mhz` that the
+     * platform's thermal engine writes; level 0 is the top, and anything above it caps
+     * `max_clock_mhz` below the top the silicon can reach.
+     */
+    internal fun gpuClockText(clockMhz: Long?, topMhz: Long?, ceilingMhz: Long?, level: Long?): String? {
+        if (clockMhz == null || ceilingMhz == null) return null
+        return when {
+            level != null && level > 0 -> buildString {
+                append("$clockMhz MHz (platform level $level allows $ceilingMhz MHz")
+                if (topMhz != null && topMhz > ceilingMhz) append("; hardware top $topMhz MHz")
+                append(")")
+            }
+            clockMhz < ceilingMhz - 5 -> "$clockMhz MHz (below the ceiling $ceilingMhz MHz)"
+            else -> "$clockMhz MHz (top level)"
+        }
+    }
+
+    private const val KGSL_DIR = "/sys/class/kgsl/kgsl-3d0"
+    private const val BLOCK_MARK = "-- session pacing "
+
+    private fun kgslNumber(name: String): Long? =
+        runCatching { File(KGSL_DIR, name).readText().trim().toLong() }.getOrNull()
+
+    private fun kgslTop(): Long? = runCatching {
+        File(KGSL_DIR, "freq_table_mhz").readText().trim().split(Regex("\\s+")).first().toLong()
+    }.getOrNull()
+
+    /**
+     * The hottest zone, not just the GPU's: the platform's engine can follow a CPU cluster, and a
+     * report that shows only the GPU reads as cool while another sensor is what crossed the line.
+     */
+    private fun hottestThermalZoneText(): String {
+        val dirs = File("/sys/class/thermal").listFiles { f: File -> f.name.startsWith("thermal_zone") }
+            ?: return "not reported"
+        var bestName: String? = null
+        var bestC = 0.0
+        for (dir in dirs) {
+            val name = runCatching { File(dir, "type").readText().trim() }.getOrNull()
+                ?.takeIf { it.isNotEmpty() } ?: continue
+            val raw = runCatching { File(dir, "temp").readText().trim().toLong() }.getOrNull() ?: continue
+            val c = thermalCelsius(raw) ?: continue
+            if (bestName == null || c > bestC) {
+                bestName = name
+                bestC = c
+            }
+        }
+        return if (bestName == null) "not reported"
+        else String.format(Locale.US, "%s %.1f C", bestName, bestC)
+    }
+
+    private fun line(b: StringBuilder, key: String, value: String) {
+        b.append(key.padEnd(24)).append(value).append('\n')
+    }
+
+    /**
+     * Which display the session ended up on, and the rates it reports. The panel lines above describe
+     * the phone's own display; a session on an external screen reports its own, and a report that
+     * named only the phone led a rate mismatch to be read as a pacing bug.
+     */
+    internal fun sessionDisplayLine(display: Display?): String? {
+        val d = display ?: return null
+        val rates = runCatching { d.supportedModes.map { it.refreshRate } }.getOrDefault(emptyList())
+        val name = runCatching { d.name }.getOrNull()
+        return sessionDisplayText(d.displayId, name, d.refreshRate, rates)
+    }
+
+    /** The text half of [sessionDisplayLine], so what a report says about a display can be tested. */
+    internal fun sessionDisplayText(id: Int, name: String?, refreshHz: Float, rates: List<Float>): String {
+        val label = name?.takeIf { it.isNotBlank() } ?: "unnamed"
+        val modes = refreshModesSummary(rates).ifEmpty { "not reported" }
+        return "id $id · $label · ${hz(refreshHz)} · modes $modes"
+    }
+
+    /**
+     * Battery state and temperature, from the sticky power broadcast. A session that slowed down can
+     * look the same whether the phone was on a charger or on the cell, and charging warms the pack
+     * while the SoC's own thermals are still fine, so a report carries both.
+     */
+    internal fun batteryLines(context: Context): List<Pair<String, String>> {
+        val intent = runCatching {
+            context.registerReceiver(null, android.content.IntentFilter(android.content.Intent.ACTION_BATTERY_CHANGED))
+        }.getOrNull() ?: return emptyList()
+        val lines = ArrayList<Pair<String, String>>(2)
+        val status = when (intent.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1)) {
+            android.os.BatteryManager.BATTERY_STATUS_CHARGING -> "charging"
+            android.os.BatteryManager.BATTERY_STATUS_FULL -> "full"
+            android.os.BatteryManager.BATTERY_STATUS_DISCHARGING -> "discharging"
+            android.os.BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "not charging"
+            else -> "status unknown"
+        }
+        val plugged = when (intent.getIntExtra(android.os.BatteryManager.EXTRA_PLUGGED, 0)) {
+            android.os.BatteryManager.BATTERY_PLUGGED_AC -> ", AC"
+            android.os.BatteryManager.BATTERY_PLUGGED_USB -> ", USB"
+            android.os.BatteryManager.BATTERY_PLUGGED_WIRELESS -> ", wireless"
+            else -> ""
+        }
+        val level = intent.getIntExtra(android.os.BatteryManager.EXTRA_LEVEL, -1)
+        val scale = intent.getIntExtra(android.os.BatteryManager.EXTRA_SCALE, -1)
+        val percent = if (level >= 0 && scale > 0) String.format(Locale.US, " (%d%%)", level * 100 / scale) else ""
+        lines += "Battery" to "$status$plugged$percent"
+        val tenths = intent.getIntExtra(android.os.BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
+        if (tenths in 1..1000) {
+            lines += "Battery temperature" to String.format(Locale.US, "%.1f C", tenths / 10.0)
+        }
+        val bm = runCatching { context.getSystemService(android.os.BatteryManager::class.java) }.getOrNull()
+        val currentRaw = runCatching {
+            bm?.getLongProperty(android.os.BatteryManager.BATTERY_PROPERTY_CURRENT_NOW)
+        }.getOrNull()
+        if (currentRaw != null && currentRaw != Long.MIN_VALUE) {
+            val currentUa = com.droiddeck.launcher.session.BatteryComponent.toMicroamps(currentRaw)
+            lines += "Battery current" to String.format(Locale.US, "%+d mA", currentUa / 1000L)
+            val voltageMv = intent.getIntExtra(android.os.BatteryManager.EXTRA_VOLTAGE, 0)
+            if (voltageMv > 0 && currentUa != 0L) {
+                val powerMw = kotlin.math.abs(currentUa) * (voltageMv.toLong() * 1000L) / 1_000_000_000L
+                lines += "Battery power" to String.format(Locale.US, "%.2f W", powerMw / 1000.0)
+            }
+        }
+        return lines
+    }
+
+    private fun hz(value: Float): String = String.format(Locale.US, "%.2f Hz", value)
 
     /** Name of an ApplicationExitInfo reason code, so a report says "LOW_MEMORY" instead of "3". */
     internal fun exitReasonName(reason: Int): String = when (reason) {
@@ -77,6 +264,27 @@ object DeviceReport {
         3 -> "BATTERY"
         4 -> "CUSTOM"
         else -> "MODE_$mode"
+    }
+
+    private fun gameMode(context: Context): Int? =
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) null
+        else runCatching { context.getSystemService(android.app.GameManager::class.java)?.gameMode }.getOrNull()
+
+    /**
+     * The mode is the framework's, not the app's: a game declared in the manifest is put in
+     * STANDARD unless the user picks Performance in Game Booster, and STANDARD is the policy that
+     * took the GPU to 295 MHz at 69 C on the measured device. The pacing block repeats it because
+     * the setting can be changed while the app is installed.
+     */
+    private fun gameModePacing(context: Context): String? {
+        val mode = gameMode(context) ?: return null
+        return when (mode) {
+            android.app.GameManager.GAME_MODE_PERFORMANCE -> "PERFORMANCE"
+            android.app.GameManager.GAME_MODE_STANDARD ->
+                "STANDARD (GOS may cap the GPU; set Game Booster → Game optimisation → Performance)"
+            android.app.GameManager.GAME_MODE_BATTERY -> "BATTERY"
+            else -> gameModeName(mode)
+        }
     }
 
     internal fun refreshModesSummary(rates: List<Float>): String =
@@ -160,10 +368,15 @@ object DeviceReport {
             }
             k("Power saver", pm.isPowerSaveMode)
         }
+        for ((key, value) in batteryLines(context)) k(key, value)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val rate = runCatching { context.getSystemService(PerformanceHintManager::class.java)?.preferredUpdateRateNanos }.getOrNull()
             k("ADPF hint sessions", if (rate == null || rate <= 0) "not supported" else "supported (preferred update ${rate / 1000} us)")
-            k("Game Mode", runCatching { context.getSystemService(android.app.GameManager::class.java)?.gameMode }.getOrNull()?.let { gameModeName(it) })
+            val mode = gameMode(context)
+            k("Game Mode", mode?.let { gameModeName(it) })
+            if (mode == android.app.GameManager.GAME_MODE_STANDARD) {
+                k("Game Booster", "Standard; set Game optimisation to Performance so GOS stops capping the GPU")
+            }
         }
         runCatching {
             val fs = StatFs(context.filesDir.path)
@@ -177,6 +390,13 @@ object DeviceReport {
         h("GPU")
         k("KGSL gpu_model", readSys("/sys/class/kgsl/kgsl-3d0/gpu_model"))
         k("KGSL chip id", readSys("/sys/class/kgsl/kgsl-3d0/gpu_chipid"))
+        k("GPU clock pin", if (SessionPrefs.gpuClockPin(context)) "on, a session holds the top level" else "off, the platform governs the level")
+        k("GPU thermal guard", if (SessionPrefs.thermalGuard(context)) "on, releases the hold near the clamp" else "off, the hold stays until the platform takes it")
+        k("GPU clock now", gpuClockText(kgslNumber("clock_mhz"), kgslTop(), kgslNumber("max_clock_mhz"), kgslNumber("thermal_pwrlevel")) ?: "not reported")
+        k("Hottest thermal zone", hottestThermalZoneText())
+        k("GPU power levels", runCatching {
+            File(KGSL_DIR, "freq_table_mhz").readText().trim().replace(Regex("\\s+"), " ")
+        }.getOrNull()?.let { "$it MHz" } ?: "not reported")
         k("System Vulkan ICD", if (File("/vendor/lib64/hw/vulkan.adreno.so").exists()) "/vendor/lib64/hw/vulkan.adreno.so" else "not at the usual path")
 
         h("Display")

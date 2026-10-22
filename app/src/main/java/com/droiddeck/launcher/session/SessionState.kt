@@ -97,6 +97,21 @@ object SessionState {
     @Volatile
     var fpsLimit: Int = 0
 
+    /** The rate the compositor's layer is paced at, once frame generation has had its say. */
+    @Volatile
+    var outputHz: Float = 0f
+
+    /** What the last pacing note said the session ran at, for the block a report ends with. */
+    @Volatile
+    var sessionDisplay: String? = null
+
+    @Volatile
+    var pacingNote: String? = null
+
+    /** What the user picked; [fpsLimit] can be lower once frame generation is on. */
+    @Volatile
+    var fpsChoice: Int = 0
+
     @Volatile
     var firstFrameSeen = false
 

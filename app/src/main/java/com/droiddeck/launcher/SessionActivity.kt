@@ -99,6 +99,7 @@ import com.droiddeck.launcher.session.SessionArtifacts
 import com.droiddeck.launcher.session.SessionLogShare
 import com.droiddeck.launcher.session.SessionPhase
 import com.droiddeck.launcher.session.SessionPaths
+import com.droiddeck.launcher.session.SessionPacing
 import com.droiddeck.launcher.wayland.HdrSupport
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.session.SessionState
@@ -368,6 +369,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var selectedSecondScreenDisplay by mutableStateOf(SessionState.secondScreenDisplay)
     private var started = false
     private var sessionActivityDisplayId = Display.DEFAULT_DISPLAY
+    @Volatile private var pacedLine: String? = null
     private lateinit var displayManager: DisplayManager
     private var secondScreenPresentation: SecondScreenPresentation? = null
     private val displayListener = object : DisplayManager.DisplayListener {
@@ -473,9 +475,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
-            SessionState.fpsLimit = SessionPrefs.fpsLimit(
+            SessionState.fpsChoice = SessionPrefs.fpsLimit(
                 this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
             )
+            SessionState.fpsLimit = SessionState.fpsChoice
         }
         applyOutputPacing()
         if (!SessionState.running) SessionState.followScreen = followChoice()
@@ -1645,7 +1648,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         else null
         val size = live ?: if (SessionState.running) previous else glassesOutputSize() ?: outputSize()
         SessionState.outputSize = size
-        if (!SessionState.running) SessionState.refreshHz = refreshHz()
+        val hz = refreshHz()
+        SessionState.refreshHz = hz
+        val plan = pacePlan(hz)
+        SessionState.fpsLimit = plan.guestFps
+        notePacing(hz, plan)
         val panel = panelBounds()
         SessionState.upscaleRatio = maxOf(panel.width(), panel.height()).toFloat() / maxOf(size.first, size.second).coerceAtLeast(1)
         Thread({
@@ -1695,7 +1702,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         CompositorHost.startOrAttach(
             holder.surface, runtimeDir.path,
             driverId?.let { turnip.driverPath(it) }, driverId?.let { turnip.libraryName(it) },
-            applicationInfo.nativeLibraryDir, size.first, size.second, refreshHz(), outputFpsLimit(),
+            applicationInfo.nativeLibraryDir, size.first, size.second, hz, plan.guestFps, plan.outputHz,
         )
         onOutputAttached(holder)
         if (SessionState.running && size != previous) {
@@ -1812,6 +1819,54 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return com.droiddeck.launcher.session.SessionDisplay.resolveChoice(panel, choice)
     }
 
+    private fun sessionMode(): String =
+        intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM
+
+    private fun pacePlan(hz: Float, armed: Boolean = FrameGen.ready(this)): SessionPacing.Plan =
+        SessionPacing.plan(
+            SessionState.fpsChoice, FrameGen.mode(this), hz, armed,
+            gameSession = sessionMode() != SessionService.MODE_DESKTOP,
+        )
+
+    /**
+     * The plan this session is paced at, logged and appended to the report the moment it changes.
+     *
+     * The report itself is written before the session's display has a mode, so this is where the
+     * numbers a report is read for land. It used to run only while the session had not started yet,
+     * which skipped it on every surface re-creation — the case that mattered.
+     */
+    private fun notePacing(hz: Float, plan: SessionPacing.Plan) {
+        // Once stopSession has flipped this, a late surface callback must not overwrite the final
+        // block with a live pin state that GpuClockPin.stop has already cleared.
+        if (!SessionState.running) return
+        SessionState.refreshHz = hz
+        SessionState.outputHz = plan.outputHz
+        val note = SessionPacing.note(plan, FrameGen.mode(this), hz)
+        SessionState.pacingNote = note
+        val displayText = com.droiddeck.launcher.core.DeviceReport.sessionDisplayLine(
+            if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay,
+        )
+        SessionState.sessionDisplay = displayText
+        val line = buildString {
+            append("pace: guest ")
+            append(if (plan.guestFps > 0) "${plan.guestFps} fps" else "follows the panel")
+            append(", layer ").append(plan.outputHz).append(" Hz, display ").append(hz).append(" Hz")
+            if (note != null) append(" — ").append(note)
+        }
+        if (line != pacedLine) {
+            pacedLine = line
+            Log.i(TAG, line)
+        }
+        // Not only when the numbers change: the first note can be taken before the session folder
+        // exists, and the report is then written over it. Writing on every note is what makes the
+        // block land once the folder is there, and the file keeps only the last one.
+        SessionState.logDirectory?.let {
+            com.droiddeck.launcher.core.DeviceReport.appendPacing(
+                this, File(it, "device.txt"), displayText, hz, plan.guestFps, plan.outputHz, note,
+            )
+        }
+    }
+
     private fun refreshHz(): Float {
         glassesScreen?.hz?.takeIf { it > 1f }?.let { return it }
         val display = if (Build.VERSION.SDK_INT >= 30) display else windowManager.defaultDisplay
@@ -1819,8 +1874,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val requested = display?.supportedModes?.firstOrNull { wanted != 0 && it.modeId == wanted }?.refreshRate
         val running = display?.refreshRate?.takeIf { it > 1f }
         val hz = listOfNotNull(requested, running).minOrNull() ?: 60f
+        val modes = display?.supportedModes.orEmpty().filter { it.refreshRate > 1f }
+        // A reported rate with no matching mode cannot be presented; pacing to it makes the
+        // compositor hold every frame for a vsync that never comes.
+        val snapped = modes.filter { it.refreshRate <= hz + 0.5f }.maxByOrNull { it.refreshRate }?.refreshRate
+            ?: modes.minByOrNull { it.refreshRate }?.refreshRate ?: hz
+        if (kotlin.math.abs(snapped - hz) > 0.5f) {
+            Log.w(TAG, "refresh: display reports $hz Hz but has no such mode, pacing at $snapped Hz")
+        }
         val mirrorCap = mirrorRefreshLimit().takeIf { it > 0 }?.toFloat() ?: Float.POSITIVE_INFINITY
-        val capped = minOf(hz, PerfMode.peakRefreshCap(this), mirrorCap)
+        val capped = minOf(snapped, PerfMode.peakRefreshCap(this), mirrorCap)
         return if (capped > 1f) capped else 60f
     }
 
@@ -1833,8 +1896,12 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         Log.i(TAG, "perf: " + PerfMode.apply(this, outputFpsLimit(), mirrorRefreshLimit()))
         if (CompositorHost.isStarted) {
             val hz = refreshHz()
+            val plan = pacePlan(hz)
             val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
-            CompositorHost.updatePacing(hz, outputFpsLimit())
+            SessionState.fpsLimit = plan.guestFps
+            SessionState.outputHz = plan.outputHz
+            CompositorHost.updatePacing(hz, plan.guestFps, plan.outputHz)
+            notePacing(hz, plan)
             pushCardboard(activeCardboard)
             if (changed && ::surfaceView.isInitialized) applyFrameGen()
         }
@@ -1845,9 +1912,15 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         Thread({
             val problem = FrameGen.apply(this, hz)
             val state = Lossless.state(this)
+            // An engine that could not arm must not leave the guest capped for frames nothing fills.
+            val armed = problem == null && FrameGen.ready(this)
+            val plan = pacePlan(hz, armed)
             runOnUiThread {
                 lossless = state
                 if (problem != null) Toast.makeText(this, problem, Toast.LENGTH_LONG).show()
+                SessionState.fpsLimit = plan.guestFps
+                if (CompositorHost.isStarted) CompositorHost.pace(plan.guestFps, plan.outputHz)
+                notePacing(hz, plan)
             }
         }, "frame-gen").start()
     }

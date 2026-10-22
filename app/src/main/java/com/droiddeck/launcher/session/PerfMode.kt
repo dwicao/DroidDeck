@@ -40,6 +40,9 @@ object PerfMode {
                 if (Build.VERSION.SDK_INT >= 33) {
                     try { gm.setGameState(GameState(false, GameState.MODE_GAMEPLAY_INTERRUPTIBLE)) } catch (t: Throwable) { Log.w(TAG, "game state", t) }
                 }
+                if (gm.gameMode == GameManager.GAME_MODE_STANDARD) {
+                    Log.w(TAG, "game mode standard: Samsung GOS may cap the GPU; set Game Booster → Game optimisation → Performance")
+                }
                 "game mode $mode"
             }
         } else "game mode needs Android 12"

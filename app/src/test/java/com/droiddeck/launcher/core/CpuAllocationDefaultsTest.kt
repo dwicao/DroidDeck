@@ -6,16 +6,16 @@ import org.junit.Test
 class CpuAllocationDefaultsTest {
     private val thor = (0..7).associateWith { when (it) { in 0..2 -> 2.016; in 3..6 -> 2.8032; else -> 3.1872 } }
 
-    @Test fun gen2UsesTheFourMiddleCoresAndOnePrime() {
+    @Test fun gen2GivesTheGameEveryPerformanceCore() {
         for (model in listOf("SM8550", "QCS8550", "sm8550-ac")) {
-            assertEquals(CpuAllocationDefaults.Allocation("7", "3,4,5,6"), CpuAllocationDefaults.forDevice(model, "", thor))
+            assertEquals(CpuAllocationDefaults.Allocation("7", "3,4,5,6,7"), CpuAllocationDefaults.forDevice(model, "", thor))
         }
-        assertEquals(CpuAllocationDefaults.Allocation("7", "3,4,5,6"), CpuAllocationDefaults.forDevice("", "kalama", thor))
+        assertEquals(CpuAllocationDefaults.Allocation("7", "3,4,5,6,7"), CpuAllocationDefaults.forDevice("", "kalama", thor))
     }
 
     @Test fun coreNumbersAndClockVariantsAreDetectedInsteadOfHardcoded() {
         val reordered = mapOf(0 to 3.36, 1 to 2.0, 2 to 2.0, 3 to 2.0, 4 to 2.8, 5 to 2.8, 6 to 2.8, 7 to 2.8)
-        assertEquals(CpuAllocationDefaults.Allocation("0", "4,5,6,7"), CpuAllocationDefaults.forDevice("SM8550-AC", "kalama", reordered))
+        assertEquals(CpuAllocationDefaults.Allocation("0", "0,4,5,6,7"), CpuAllocationDefaults.forDevice("SM8550-AC", "kalama", reordered))
     }
 
     @Test fun anotherOrUnknownChipDoesNotAcquireThisDefault() {

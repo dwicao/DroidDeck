@@ -145,6 +145,34 @@ object SessionPrefs {
         prefs(context).edit().putString("storesInstallTarget", path).apply()
     }
 
+    const val DEFAULT_STORAGE_ASK = "ask"
+    const val DEFAULT_STORAGE_INTERNAL = "internal"
+    const val DEFAULT_STORAGE_EXTERNAL = "external"
+    private val DEFAULT_STORAGE_VALUES = setOf(DEFAULT_STORAGE_ASK, DEFAULT_STORAGE_INTERNAL, DEFAULT_STORAGE_EXTERNAL)
+
+    fun defaultStorage(context: Context): String =
+        prefs(context).getString("defaultStorage", DEFAULT_STORAGE_ASK)
+            ?.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK
+
+    fun setDefaultStorage(context: Context, value: String) {
+        prefs(context).edit().putString("defaultStorage", value.takeIf { it in DEFAULT_STORAGE_VALUES } ?: DEFAULT_STORAGE_ASK).apply()
+    }
+
+    fun defaultStorageFolder(context: Context): String = prefs(context).getString("defaultStorageFolder", "") ?: ""
+
+    fun defaultStorageFolderLabel(context: Context): String = prefs(context).getString("defaultStorageFolderLabel", "") ?: ""
+
+    fun setDefaultStorageFolder(context: Context, path: String, label: String) {
+        prefs(context).edit()
+            .putString("defaultStorageFolder", path)
+            .putString("defaultStorageFolderLabel", label)
+            .apply()
+    }
+
+    fun clearDefaultStorageFolder(context: Context) {
+        prefs(context).edit().remove("defaultStorageFolder").remove("defaultStorageFolderLabel").apply()
+    }
+
     /** Empty means follow the app/system language for GOG and Epic installs. */
     fun storesInstallLanguage(context: Context): String = prefs(context).getString("storesInstallLanguage", "") ?: ""
 
@@ -423,10 +451,20 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("gamescopeRealtime", on).apply()
     }
 
-    fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", false)
+    fun gpuClockPin(context: Context): Boolean = prefs(context).getBoolean("gpuClockPin", true)
 
     fun setGpuClockPin(context: Context, on: Boolean) {
         prefs(context).edit().putBoolean("gpuClockPin", on).apply()
+    }
+
+    /**
+     * Off by default: the guard trades the top clock for a softer landing, and whether that is
+     * wanted is a per-device decision, not a policy the app should apply to every session.
+     */
+    fun thermalGuard(context: Context): Boolean = prefs(context).getBoolean("thermalGuard", false)
+
+    fun setThermalGuard(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("thermalGuard", on).apply()
     }
 
     /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
@@ -577,6 +615,21 @@ object SessionPrefs {
             .onFailure { android.util.Log.e("GameEnvironment", "Could not update game environment", it) }
     }
 
+    const val X86_FEX_VALVE = GameEnvironment.X86_FEX_VALVE
+    const val X86_FEX_DROIDDECK = GameEnvironment.X86_FEX_DROIDDECK
+
+    fun x86FexTool(context: Context): String =
+        if (prefs(context).getString("x86FexTool", X86_FEX_VALVE) == X86_FEX_DROIDDECK) X86_FEX_DROIDDECK else X86_FEX_VALVE
+
+    fun setX86FexTool(context: Context, id: String) {
+        prefs(context).edit().putString("x86FexTool", if (id == X86_FEX_DROIDDECK) X86_FEX_DROIDDECK else X86_FEX_VALVE).apply()
+    }
+
+    fun x86FexDebug(context: Context): Boolean = prefs(context).getBoolean("x86FexDebug", false)
+
+    fun setX86FexDebug(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("x86FexDebug", on).apply()
+    }
     fun steamClientArch(context: Context): String = prefs(context).getString("steamClientArch", null) ?: "arm64"
 
     fun setSteamClientArch(context: Context, id: String) {

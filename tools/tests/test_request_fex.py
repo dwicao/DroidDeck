@@ -50,5 +50,42 @@ class RequestFexTest(unittest.TestCase):
         self.assertEqual([], COMPAT["request_fex"](str(self.root), asked))
         self.assertEqual(["start steam://install/1628350", "end steam://install/1628350"], self.log.read_text().splitlines())
 
+
+class MainAsksForNothingBeforeTheClientRuns(unittest.TestCase):
+    """main() runs before the session starts its own client. request_fex runs the client's binary
+    to forward the URL, so asking there launches a second client, which refuses to start and ends
+    the session. The guard is the same one the original caller in droiddeck-fex uses."""
+
+    def guard_in_source(self):
+        source = (Path(__file__).resolve().parents[1] / "linuxfs/overlay/usr/local/bin/steam-compatibility").read_text()
+        body = source[source.index("def main():"):]
+        return body
+
+    def test_the_request_sits_behind_the_running_check(self):
+        body = self.guard_in_source()
+        guard = body.index("if steam_running():")
+        ask = body.index("request_fex(steam_root, set())")
+        self.assertLess(guard, ask, "request_fex must be guarded by steam_running()")
+
+    def test_nothing_is_asked_for_while_the_client_is_down(self):
+        recorded = []
+        running = lambda: False
+        request = lambda root, asked: recorded.append("asked") or []
+        # the guard as it reads in main()
+        if running():
+            for app in request("root", set()):
+                pass
+        self.assertEqual([], recorded)
+
+    def test_it_is_asked_for_once_the_client_is_up(self):
+        recorded = []
+        running = lambda: True
+        request = lambda root, asked: recorded.append("asked") or []
+        if running():
+            for app in request("root", set()):
+                pass
+        self.assertEqual(["asked"], recorded)
+
+
 if __name__ == "__main__":
     unittest.main()

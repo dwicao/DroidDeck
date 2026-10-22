@@ -156,19 +156,26 @@ class PerfHud(context: Context) {
 
     private fun line(base: Float): String {
         val mode = FrameGen.mode(context)
-        if (mode.engine == FrameGen.ENGINE_OFF) return fps(base)
+        if (mode.engine == FrameGen.ENGINE_OFF) return withThrottle(fps(base))
         val lsfg = mode.engine == FrameGen.ENGINE_LSFG
         val name = if (lsfg) "LSFG" else "DD-FG"
         val label = FrameGen.label(context, mode)
-        if (lsfg && Lossless.cacheFile(context)?.isFile != true) return context.getString(R.string.hud_fg_needs_lossless, name)
+        if (lsfg && Lossless.cacheFile(context)?.isFile != true)
+            return withThrottle(context.getString(R.string.hud_fg_needs_lossless, name))
         val stats = try { WaylandCompositor.nativeFrameGenStats() } catch (t: Throwable) { null }
         val problem = try { WaylandCompositor.nativeFrameGenProblem() } catch (t: Throwable) { -1 }
-        return when {
+        return withThrottle(when {
             problem == 1 -> context.getString(R.string.hud_fg_unsupported, name)
             problem == 2 -> context.getString(R.string.hud_fg_failed, name)
             stats != null && stats[3] > 1f -> String.format(Locale.US, "%s  %.0f → %.0f fps", label, base, stats[3])
             else -> context.getString(R.string.hud_fg_starting, label, fps(base))
-        }
+        })
+    }
+
+    /** The thermal status and the top CPU cluster's clock, so a settling frame rate has a reason next to it. */
+    private fun withThrottle(text: String): String {
+        val state = ThrottleWatch.summary
+        return if (state.isEmpty()) text else "$text  ·  $state"
     }
 
     private fun fps(value: Float) = String.format(Locale.US, "%.0f fps", value)

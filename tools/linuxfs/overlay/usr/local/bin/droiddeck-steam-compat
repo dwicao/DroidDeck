@@ -619,6 +619,15 @@ class Helper:
                         current[app] = ""
                     elif not current.get(app):
                         current.pop(app, None)
+            # The client's own guess for an x86 Linux title ("native" or no name, kept at priority 85
+            # in its live mapping) is what this registration replaces: with the guess left in place
+            # plan_mapping would treat it as a choice and leave it, and the game keeps starting
+            # through the client's own FEX path.
+            translated = {app for app, tool in native.items() if tool not in (None, COMPAT["NATIVE_CHOICE"])}
+            for app in translated:
+                if current.get(app) in ("", "native"):
+                    del current[app]
+                    native_choices.discard(app)
             changes, auto = COMPAT["plan_mapping"](
                 current, installed, [t["name"] for t in live], default,
                 COMPAT["followers"](state, current), native, picks, overrides,

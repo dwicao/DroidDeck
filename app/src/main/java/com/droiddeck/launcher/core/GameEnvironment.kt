@@ -87,6 +87,8 @@ object GameEnvironment {
 
     const val CUSTOM_FEX_PRESET = "__custom__"
 
+    const val X86_FEX_VALVE = "valve"
+    const val X86_FEX_DROIDDECK = "droiddeck"
     val syncBackends = listOf(SessionPrefs.SYNC_NTSYNC, SessionPrefs.SYNC_FSYNC, SessionPrefs.SYNC_ESYNC, SessionPrefs.SYNC_WINESERVER)
 
     val syncKeys = listOf("BL_SYNC", "BL_FSYNC_FIRST", "BL_SYNC_FALLBACK", "PROTON_NO_ESYNC", "PROTON_NO_FSYNC", "PROTON_NO_NTSYNC", "WINEESYNC")

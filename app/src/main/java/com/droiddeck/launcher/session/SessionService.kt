@@ -423,6 +423,7 @@ class SessionService : Service() {
 
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
+        Log.i(TAG, ThrottleWatch.start(this))
 
         val size = SessionState.outputSize
         val guest = ArrayList<String>()
@@ -704,6 +705,8 @@ class SessionService : Service() {
         }
         if (SessionState.mode == MODE_STEAM) {
             guest.add("BL_GAMESCOPE_STRETCH_16X9=" + (if (SessionPrefs.stretch16x9(this)) "1" else "0"))
+            guest.add("BL_FEX_TOOL=" + SessionPrefs.x86FexTool(this))
+            if (SessionPrefs.x86FexDebug(this)) guest.add("BL_FEX_VERBOSE=1")
         }
         if (SessionPrefs.noXalia(this)) guest.add("PROTON_USE_XALIA=0")
         guest.add("BL_SYNC=" + (if (SessionPrefs.fastSync(this)) "1" else "0"))
@@ -1619,6 +1622,7 @@ class SessionService : Service() {
         cancelQueuedSteamGame()
         gameExitWatchToken++
         completeNativeSleep()
+        ThrottleWatch.stop()
         val (ended, endedArch) = synchronized(stopLock) {
             if (!SessionState.running) return
             SessionState.running = false
@@ -1631,6 +1635,15 @@ class SessionService : Service() {
         val launcherEnded = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP || SessionState.program == NoSteamLaunch.EPIC
         SessionState.stopRequested = false
         SessionEvents.record("guest.exited", mapOf("status" to status))
+        // The report is written before the session's surface exists, so the pacing block it gains
+        // during the session is not guaranteed to have landed; this path always runs, and the GPU
+        // lines it reads now are the ones the session ended at.
+        SessionState.logDirectory?.let {
+            DeviceReport.appendPacing(
+                this, File(it, "device.txt"), SessionState.sessionDisplay,
+                SessionState.refreshHz, SessionState.fpsLimit, SessionState.outputHz, SessionState.pacingNote,
+            )
+        }
         GpuClockPin.stop(this)
         GameThreadHints.stop()
         SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
@@ -1707,6 +1720,7 @@ class SessionService : Service() {
     override fun onDestroy() {
         stopSession(0)
         GameThreadHints.stop() // also when the session never got as far as running
+        ThrottleWatch.stop()
         if (screenReceiverRegistered) {
             unregisterReceiver(screenReceiver)
             screenReceiverRegistered = false

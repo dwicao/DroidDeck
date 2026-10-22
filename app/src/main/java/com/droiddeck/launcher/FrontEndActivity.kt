@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import android.Manifest
 import android.app.ActivityOptions
 import android.content.Intent
+import android.widget.Toast
 import android.content.ClipData
 import android.content.ClipboardManager
 import java.io.File
@@ -34,6 +35,7 @@ import com.droiddeck.launcher.gpu.Lossless
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
+import com.droiddeck.launcher.runtime.LinuxFex
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
@@ -70,6 +72,7 @@ import com.droiddeck.launcher.frontend.Library
 import com.droiddeck.launcher.frontend.GameFiles
 import com.droiddeck.launcher.frontend.GameFileSync
 import com.droiddeck.launcher.frontend.GameLaunchIntent
+import com.droiddeck.launcher.frontend.SessionInstalls
 import com.droiddeck.launcher.ui.DroidDeckTheme
 import com.droiddeck.launcher.ui.RomsDialog
 import com.droiddeck.launcher.files.InAppFilePicker
@@ -101,6 +104,8 @@ class FrontEndActivity : ComponentActivity() {
     private class ReturningFlood(val color: Int, val to: androidx.compose.ui.geometry.Rect?)
     private var ready by mutableStateOf(false)
     private var removalPending by mutableStateOf(false)
+    private var fexMissing by mutableStateOf<List<Pair<Int, String>>>(emptyList())
+    private var fexReady by mutableStateOf(true)
     private var available by mutableStateOf<LinuxRuntimeInstaller.Release?>(null)
     private var busy by mutableStateOf(false)
     private var stage by mutableStateOf("")
@@ -152,6 +157,7 @@ class FrontEndActivity : ComponentActivity() {
     private var fsyncFirst by mutableStateOf(false)
     private var gamescopeRealtime by mutableStateOf(false)
     private var gpuClockPin by mutableStateOf(false)
+    private var thermalGuard by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
     private var guestHostname by mutableStateOf(SessionPrefs.DEFAULT_GUEST_HOSTNAME)
@@ -374,6 +380,8 @@ class FrontEndActivity : ComponentActivity() {
     private var settingsMode by mutableStateOf<String?>(null)
     private var resolution by mutableStateOf(com.droiddeck.launcher.session.SessionDisplay.DEFAULT_RESOLUTION)
     private var fexPreset by mutableStateOf("")
+    private var x86FexTool by mutableStateOf(com.droiddeck.launcher.core.GameEnvironment.X86_FEX_VALVE)
+    private var x86FexDebug by mutableStateOf(false)
     private var forceSsbs by mutableStateOf(false)
     private var steamClientArch by mutableStateOf("arm64")
     private var runSteamAtStartup by mutableStateOf(false)
@@ -485,6 +493,91 @@ class FrontEndActivity : ComponentActivity() {
         }
         pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.game_file_folder), gameSyncFolder))
     }
+
+    private val pickOpenKit = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
+        val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
+    }
+
+    /**
+     * The client installs it like any other depot, which is the only way these two exist on the
+     * guest. Started one at a time, as the guest asks for them: a second press picks up whatever
+     * is still missing once the first download has landed.
+     */
+    private fun installFex(appId: Int) {
+        val still = LinuxFex.missing(SessionInstalls.steamappsDirs(this))
+        if (still.none { it.first == appId }) return
+        if (SessionState.running) {
+            // Starting a second session here hands the URL to a client that is already up and
+            // ends that session instead, so the install never runs and nothing says why.
+            Toast.makeText(this, R.string.setup_fex_session_open, Toast.LENGTH_LONG).show()
+            return
+        }
+        startSession(
+            Intent(this, SessionActivity::class.java)
+                .putExtra(SessionService.EXTRA_STEAM_URL, "steam://install/$appId"),
+            steamSession = true,
+        )
+    }
+
+    private fun pickGameExportKit(game: Library.SteamGame) {
+        val source = com.droiddeck.launcher.frontend.GameKit.source(this, game.appId)
+        val blocked = source?.let { com.droiddeck.launcher.frontend.GameKit.gates(it) } ?: emptyList()
+        if (blocked.isNotEmpty()) {
+            val detail = when (blocked.first()) {
+                com.droiddeck.launcher.frontend.GameKit.Gate.NOT_INSTALLED -> getString(R.string.kit_gate_not_installed, game.name)
+                com.droiddeck.launcher.frontend.GameKit.Gate.NO_DEPOT_RECORD -> getString(R.string.kit_gate_no_depot_record, game.name)
+                com.droiddeck.launcher.frontend.GameKit.Gate.NO_FILES -> getString(R.string.kit_gate_no_files, game.name)
+                com.droiddeck.launcher.frontend.GameKit.Gate.SHORT -> getString(R.string.kit_gate_short, game.name)
+            }
+            android.widget.Toast.makeText(this, detail, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
+        onSavePicked = { folder ->
+            saveAction(getString(R.string.kit_export_busy, game.name)) {
+                val saved = com.droiddeck.launcher.frontend.GameKit.export(
+                    source = source!!, destination = folder,
+                    onProgress = { p -> ui.post { /* progress could be shown */ } },
+                )
+                getString(R.string.kit_export_done, game.name, com.droiddeck.launcher.frontend.GameKit.formatSize(saved.measured.bytes), saved.archive.path)
+            }
+        }
+        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.kit_export_title, game.name)))
+    }
+
+    private fun pickGameImportKit() {
+        val targets = com.droiddeck.launcher.frontend.GameKit.targets(this)
+        if (targets.isEmpty()) {
+            android.widget.Toast.makeText(this, R.string.kit_import_no_pick, android.widget.Toast.LENGTH_SHORT).show()
+            return
+        }
+        // Build a tiny choice: for now just import into the internal Steam library.
+        // A full library chooser can be added later; the internal library is always present.
+        val library = targets.last { it.second == java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(this), "root/.local/share/Steam") }
+            ?: targets.first()
+        onSavePicked = { file ->
+            saveAction(getString(R.string.kit_import)) {
+                val imported = com.droiddeck.launcher.frontend.GameKit.import(
+                    archive = file, library = library.second,
+                    onProgress = { p -> ui.post { /* progress */ } },
+                )
+                com.droiddeck.launcher.frontend.GameKit.requestPickup(this)
+                val note = if (imported.shortBy > 0L)
+                    getString(R.string.kit_import_short, gameName(imported.kit), com.droiddeck.launcher.frontend.GameKit.formatSize(imported.shortBy))
+                else
+                    getString(R.string.kit_import_done, gameName(imported.kit), library.first)
+                ui.post {
+                    android.widget.Toast.makeText(this, note, android.widget.Toast.LENGTH_LONG).show()
+                }
+                note
+            }
+        }
+        pickOpenKit.launch(InAppFilePicker.buildIntent(
+            this, extensions = listOf("tar.zst"), title = getString(R.string.kit_import_pick)))
+    }
+
+    private fun gameName(kit: com.droiddeck.launcher.frontend.GameKit.Kit): String =
+        kit.name.takeIf { it.isNotBlank() } ?: kit.appId.toString()
 
     private fun switchLauncherIcon(style: String): Boolean {
         val before = LauncherIcon.current(this)
@@ -781,6 +874,7 @@ class FrontEndActivity : ComponentActivity() {
                 FrontEndScreen(
                     FrontEndState(
                         installed = installed, ready = ready, available = available?.version, removalPending = removalPending, runtimeActionsBlocked = runtimeChangesBlocked(),
+                        fexReady = fexReady, fexMissing = fexMissing,
                         shortcutPicker = shortcutPicker,
                         shortcutLibraryScanning = shortcutLibraryScanning,
                         gameSyncFolder = gameSyncFolder,
@@ -834,6 +928,7 @@ class FrontEndActivity : ComponentActivity() {
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
+                        onInstallFex = { appId -> installFex(appId) },
                         onPlaySteamVr = { playSteamVr() },
                         onSteamUrl = { url ->
                             if (!SessionState.running) startSession(
@@ -856,6 +951,8 @@ class FrontEndActivity : ComponentActivity() {
                         onUninstallEpicLauncher = { uninstallEpicLauncher() },
                         onGameShortcut = { g -> com.droiddeck.launcher.frontend.GameShortcuts.pin(this, g) },
                         onExportGameFile = { g -> pickGameExport(g) },
+                        onExportGameKit = { g -> pickGameExportKit(g) },
+                        onImportGameKit = { pickGameImportKit() },
                         onSyncGameFiles = { pickGameExport(null) },
                         onAddGameExe = { path -> addGameExe(path) },
                         onAddedGamesChanged = { folders ->
@@ -1447,6 +1544,8 @@ class FrontEndActivity : ComponentActivity() {
         showMapping = false
         showComponents = true
         fexPreset = SessionPrefs.fexPreset(this)
+        x86FexTool = SessionPrefs.x86FexTool(this)
+        x86FexDebug = SessionPrefs.x86FexDebug(this)
         forceSsbs = SessionPrefs.forceSsbs(this)
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
@@ -1493,6 +1592,10 @@ class FrontEndActivity : ComponentActivity() {
             initialGameKey = componentsGameKey,
             generalFexPreset = fexPreset,
             onGeneralFexPreset = { id -> SessionPrefs.setFexPreset(this, id); fexPreset = id },
+            x86FexTool = x86FexTool,
+            onX86FexTool = { id -> SessionPrefs.setX86FexTool(this, id); x86FexTool = id },
+            x86FexDebug = x86FexDebug,
+            onX86FexDebug = { on -> SessionPrefs.setX86FexDebug(this, on); x86FexDebug = on },
             gpu = drivers.state(),
             gpuActions = com.droiddeck.launcher.ui.GpuDriversActions(
                 onAuto = { on -> drivers.setMode(on) },
@@ -1763,6 +1866,7 @@ class FrontEndActivity : ComponentActivity() {
             fsyncFirst = fsyncFirst,
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
+            thermalGuard = thermalGuard,
             prootNoSeccomp = prootNoSeccomp, prootFastPath = prootFastPath, guestHostname = guestHostname, phantomWarning = phantomWarning,
             onClientOverride = { on -> SessionPrefs.setClientCpusOverride(this, on); clientOverride = on },
             onTuSysmem = { on -> SessionPrefs.setTuSysmem(this, on); tuSysmem = on },
@@ -1775,6 +1879,7 @@ class FrontEndActivity : ComponentActivity() {
             onFsyncFirst = { on -> SessionPrefs.setFsyncFirst(this, on); fsyncFirst = on },
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
+            onThermalGuard = { on -> SessionPrefs.setThermalGuard(this, on); thermalGuard = on },
             onProotNoSeccomp = { on -> SessionPrefs.setProotNoSeccomp(this, on); prootNoSeccomp = on },
             onProotFastPath = { on -> SessionPrefs.setProotFastPath(this, on); prootFastPath = on },
             onGuestHostname = { name -> SessionPrefs.setGuestHostname(this, name) },
@@ -1884,6 +1989,8 @@ class FrontEndActivity : ComponentActivity() {
         unfoldedControlsWithController = SessionPrefs.unfoldedControlsWithController(this)
         resolution = SessionPrefs.resolutionChoice(this, mode, com.droiddeck.launcher.session.SessionDisplay.panelSize(this))
         fexPreset = SessionPrefs.fexPreset(this)
+        x86FexTool = SessionPrefs.x86FexTool(this)
+        x86FexDebug = SessionPrefs.x86FexDebug(this)
         forceSsbs = SessionPrefs.forceSsbs(this)
         fastSync = SessionPrefs.fastSync(this)
         fsyncFirst = SessionPrefs.fsyncFirst(this)
@@ -1956,6 +2063,7 @@ class FrontEndActivity : ComponentActivity() {
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         gamescopeRealtime = SessionPrefs.gamescopeRealtime(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
+        thermalGuard = SessionPrefs.thermalGuard(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
         guestHostname = SessionPrefs.guestHostname(this)
@@ -1979,6 +2087,8 @@ class FrontEndActivity : ComponentActivity() {
         installed = LinuxRuntimeInstaller.installedVersion(this)
         ready = LinuxRuntime.isInstalled(this)
         removalPending = LinuxRuntimeInstaller.hasRemovalPending(this)
+        fexReady = LinuxFex.ready(this)
+        fexMissing = if (ready) LinuxFex.missing(SessionInstalls.steamappsDirs(this)) else emptyList()
         frameGenLabel = FrameGen.label(this)
         romsDir = SessionPrefs.romsDir(this).takeIf { it.isNotEmpty() }
         logsEnabled = SessionPrefs.logsEnabled(this)

@@ -104,6 +104,8 @@ object AddedGames {
 
     private val identified = java.util.concurrent.ConcurrentHashMap<String, String>()
 
+    private val identifiedIds = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
     internal fun identifiedName(folder: File, exe: File): String? {
         val key = "${exe.path}|${exe.length()}|${exe.lastModified()}|${folder.lastModified()}"
         identified[key]?.let { return it.ifEmpty { null } }
@@ -114,6 +116,14 @@ object AddedGames {
         val name = found?.let { if (id?.nameSource == GameIdentifier.Source.PE_VERSION) betterSpelling(underscoresToSpaces(it), folder.name) else it }
         identified[key] = name.orEmpty()
         return name
+    }
+
+    internal fun identifiedAppId(folder: File, exe: File): Int? {
+        val key = "${exe.path}|${exe.length()}|${exe.lastModified()}|${folder.lastModified()}"
+        identifiedIds[key]?.let { return it.takeIf { it > 0 } }
+        val appId = runCatching { GameIdentifier.identify(exe) }.getOrNull()?.appId ?: 0
+        identifiedIds[key] = appId
+        return appId.takeIf { it > 0 }
     }
 
     internal fun underscoresToSpaces(name: String): String =
@@ -452,6 +462,7 @@ object AddedGames {
                 .append(",\"folder\":").append(quote(guestPath(context, g.folder) ?: g.guestDir))
                 .append(",\"dir\":").append(quote(g.guestDir)).append(",\"appid\":").append(g.appId)
                 .append(",\"seen\":").append(SessionPrefs.addedGameExeSeen(context, g.folder.path))
+            identifiedAppId(g.folder, g.exe)?.let { json.append(",\"steam_id\":").append(it) }
             if (g.launchOptions.isNotEmpty()) json.append(",\"launch\":").append(quote(g.launchOptions))
             if (g.source != Library.ADDED) json.append(",\"store\":").append(quote(g.source))
             val art = AddedGameArt.resolve(context, g)
