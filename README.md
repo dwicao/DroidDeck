@@ -9,7 +9,7 @@
 
 DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton.
 
-> **This fork.** This tree is rebased onto upstream **0.6.0** (`22eac083`) and keeps the fork's storage, pacing, GPU, and game-kit changes. The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes.
+> **This fork.** This tree is rebased onto upstream **0.6.0** (`22eac083`) and keeps the fork's storage, pacing, GPU, and game-kit changes. **Play from any folder:** internal storage, an SD card, a USB drive or SSD, or any folder you pick, and move installed Steam games there from **Setup > Storage**. The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes.
 
 <p align="center"><a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a></p>
 
@@ -22,6 +22,19 @@ DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big 
 Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adreno 6xx is experimental: DirectX 11 uses DXVK 2 and may run, and DirectX 12 games can still crash. Mali, Xclipse, PowerVR, and Adreno 710 are unsupported. No root is required. Allow about 3 GB for the runtime and 1.1 GB more for the desktop and emulators. Install the APK from [Releases](https://github.com/dwicao/DroidDeck/releases), install the Linux runtime, then press **Play** and sign in. Steam downloads on first launch. Install **Desktop & apps** to use the desktop and emulators. The **Store** installs Linux apps and games from Flathub (ARM64 builds) with Flatpak; with additional options to install Appimages and set up scripts. **Stores** (Setup › Stores › "Show Stores in the rail") signs in to GOG, Epic Games and Amazon Games and downloads games into the Games storage. Epic keeps its direct API install path. Opening Epic Stores prepares Epic’s official Linux launcher preview. When installed, Epic games launched from DroidDeck use that client, and games installed in the client are imported into DroidDeck’s library and shortcuts. The x86-64 client runs through FEX on ARM and DroidDeck retains its Proton hooks; this preview and ARM setup are outside Epic’s listed Linux support. The cog on a store’s chip row sets its opening tab and download speed tier.
 
 On Android 14 and newer, before Steam launches, you must turn on **Disable child process restrictions** in Developer options. If this option is not available in developer settings (Android 12 and 13 devices), first launch of Steam will present a "Fix it for me" button, which will help automate the setup process.
+
+## Play from any storage
+
+DroidDeck does not tie your games to internal storage. **Setup > Storage** can keep them on:
+
+- **Internal storage**, the fastest path.
+- **SD card** storage that Android exposes to apps.
+- **A USB drive or SSD**, including drives Android does not report as app-specific external storage.
+- **Any writable folder** through **Choose folder…**; DroidDeck creates a `Games` folder inside it.
+
+**Default storage** applies to new store installs and the Epic Games Launcher, while each Steam library keeps its own **Game storage** choice. Games that are already installed do not have to stay put: **Setup > Storage > Games > Move** moves a Steam game, its Proton prefix, shader cache, workshop content, pending downloads, and manifest into internal storage, the SD card, a configured games folder, or a picked folder. The destination is registered as a Steam library, so Steam keeps detecting and launching the game, and a failed copy puts the files back. Stop the session first; a move is not resumable, so keep DroidDeck open until it finishes.
+
+If a chosen folder is disconnected, DroidDeck asks for a target instead of silently falling back to internal storage.
 
 ## Smart glasses
 
@@ -43,7 +56,7 @@ remain the reliable ways to keep a higher ceiling.
 
 ## Fork changes
 
-The 25 fork-only commits through `7dbf0842` fall into four groups; their net changes are ported onto upstream 0.6.0 and add a configurable default storage target. The latest fork build is **0.6.0 (25)**; the complete list is at the end of this section.
+The 25 fork-only commits through `7dbf0842` fall into four groups; their net changes are ported onto upstream 0.6.0 and add a configurable default storage target, while 0.6.1 adds moving Steam games between libraries. The latest fork build is **0.6.1 (26)**; the complete list is at the end of this section.
 
 ### Session pacing, GPU, and thermals
 
@@ -101,9 +114,14 @@ The 25 fork-only commits through `7dbf0842` fall into four groups; their net cha
   **External storage**, **Choose folder…**, or **Ask every time**. The folder picker can target any
   writable folder, including an SSD or USB drive that Android does not expose as an app-specific
   external directory. The Epic Games Launcher uses the same choice for its install directory.
-- Existing games stay where they are, and Steam libraries keep their own **Game storage** setting.
-  If the selected folder is disconnected, DroidDeck asks for a target instead of silently using
-  internal storage.
+- **Move** on an installed Steam game moves it to internal storage, the card, a configured games
+  folder, or a picked folder. The game's files, Proton prefix, shader cache, workshop content,
+  pending downloads, and manifest move together; the destination is registered as a Steam library
+  for the right client, and a failed copy is rolled back. Moves are blocked while a session runs and
+  while storage cleanup is active.
+- Existing games are not moved automatically; use **Move** to relocate one. Steam libraries keep
+  their own **Game storage** setting. If the selected folder is disconnected, DroidDeck asks for a
+  target instead of silently using internal storage.
 
 ### Build and documentation
 
