@@ -117,6 +117,31 @@ class SteamGameMoveTest {
         assertTrue(Library.steamLibraries(app, "arm64").none { it.first.canonicalPath == target.canonicalPath })
     }
 
+    @Test fun anX64GameCannotUseAnAddedGamesFolder() {
+        SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
+        val source = tmp.newFolder("source-added-x64")
+        val gameDir = File(source, "steamapps/common/Example").apply { mkdirs() }
+        File(gameDir, "game.exe").writeText("game")
+        val manifest = File(source, "steamapps/appmanifest_220.acf").apply {
+            writeText("\"AppState\"\n{\n\t\"appid\"\t\t\"220\"\n\t\"StateFlags\"\t\t\"4\"\n\t\"installdir\"\t\t\"Example\"\n}\n")
+        }
+        val target = tmp.newFolder("target-added")
+        SessionPrefs.setGameFolderBinds(app, listOf(target.path to "/root/Games/Added"))
+        val game = GameUsage(
+            220, "Example", null, "internal", true, 0,
+            0, 0, 0, 0, null, true,
+            source, source, gameDir, manifest,
+        )
+
+        val error = SteamGameMove.move(app, game, target)
+
+        assertEquals(app.getString(com.droiddeck.launcher.R.string.storage_move_other_client), error)
+        assertTrue(File(gameDir, "game.exe").isFile)
+        assertTrue(manifest.isFile)
+        assertFalse(File(target, "steamapps/common/Example").exists())
+        assertTrue(SteamLibraryRegistry.all(app).isEmpty())
+    }
+
     @Test fun aTargetRegisteredForBothClientsIsRejected() {
         SessionPrefs.setGameStorage(app, SessionPrefs.GAME_STORAGE_OFF, "")
         val source = tmp.newFolder("source-dual")

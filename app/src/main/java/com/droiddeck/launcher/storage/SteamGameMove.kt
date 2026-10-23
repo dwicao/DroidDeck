@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.droiddeck.launcher.R
 import com.droiddeck.launcher.files.FileOps
+import com.droiddeck.launcher.frontend.AddedGames
 import com.droiddeck.launcher.session.GameStorage
 import com.droiddeck.launcher.session.SecondaryLibrary
 import com.droiddeck.launcher.session.SessionPrefs
@@ -262,14 +263,27 @@ object SteamGameMove {
 
     private fun knownRoots(context: Context): List<Known> {
         val out = ArrayList<Known>()
-        out.add(Known(SessionPrefs.steamRoot(context, "arm64"), "arm64", Kind.INTERNAL, "Internal storage"))
-        out.add(Known(SessionPrefs.steamRoot(context, "x86_64"), "x86_64", Kind.INTERNAL, "Internal storage"))
-        GameStorage.effective(context)?.let { card ->
+        val internalArm = SessionPrefs.steamRoot(context, "arm64")
+        val internalX64 = SessionPrefs.steamRoot(context, "x86_64")
+        out.add(Known(internalArm, "arm64", Kind.INTERNAL, "Internal storage"))
+        out.add(Known(internalX64, "x86_64", Kind.INTERNAL, "Internal storage"))
+        val card = GameStorage.effective(context)
+        val cardArm = card?.let { File(it.path) }
+        val cardX64 = card?.let { File(it.path, GameStorage.X64_CARD_DIR) }
+        if (card != null) {
             out.add(Known(File(card.path), "arm64", Kind.CARD, card.label))
             out.add(Known(File(card.path, GameStorage.X64_CARD_DIR), "x86_64", Kind.CARD, card.label))
         }
         for (library in GameStorage.gamesFolderLibraries(context)) {
             out.add(Known(library.host, "arm64", Kind.ADDED, library.label))
+        }
+        // Games folders are arm64 libraries; they must not overlap the card or internal roots.
+        val bases = listOfNotNull(internalArm, internalX64, cardArm, cardX64).map { canonical(it) }
+        for (root in AddedGames.roots(context)) {
+            if (!root.host.isDirectory || !root.host.canWrite()) continue
+            val host = canonical(root.host)
+            if (bases.any { base -> host == base || host.startsWith("$base/") || base.startsWith("$host/") }) continue
+            out.add(Known(root.host, "arm64", Kind.ADDED, GameStorage.labelFor(context, root.host.path)))
         }
         for (library in SteamLibraryRegistry.all(context)) {
             out.add(Known(library.host, library.arch, Kind.CUSTOM, library.label))
