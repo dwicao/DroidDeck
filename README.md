@@ -33,6 +33,11 @@ DroidDeck does not tie your games to internal storage. **Setup > Storage** can k
 - **Any writable folder** through **Choose folder…**; DroidDeck creates a `Games` folder inside it.
 
 **Default storage** applies to new store installs and the Epic Games Launcher, while each Steam library keeps its own **Game storage** choice. Games that are already installed do not have to stay put: **Setup > Storage > Games > Move** moves a Steam game, its Proton prefix, shader cache, workshop content, pending downloads, and manifest into internal storage, the SD card, a configured games folder, or a picked folder. The destination is registered as a Steam library, so Steam keeps detecting and launching the game, and a failed copy puts the files back. Stop the session first; a move is not resumable, so keep DroidDeck open until it finishes.
+- Games added with **Games > Add a game** are listed with their full size under **Added games** and have their own **Move**. Their folder, picked exe, prefix record, and library entry move together.
+- If an added folder matches a Steam game whose install folder is missing, **Install into Steam** moves it into that library's `steamapps/common` folder and Steam adopts it on its next start. Pick the game yourself when it is not matched automatically.
+- Doing it by hand works too: copy the game folder into the library's `steamapps/common/<installDir>` yourself, press **Install** in Steam, and Steam verifies the existing files instead of downloading them again.
+
+If a chosen folder is disconnected, DroidDeck asks for a target instead of silently falling back to internal storage. Plugged-in USB drives appear in the file and folder pickers; if a drive is visible but not readable, grant DroidDeck **All files access** when asked.
 
 If a chosen folder is disconnected, DroidDeck asks for a target instead of silently falling back to internal storage.
 
@@ -56,7 +61,7 @@ remain the reliable ways to keep a higher ceiling.
 
 ## Fork changes
 
-The 25 fork-only commits through `7dbf0842` fall into four groups; their net changes are ported onto upstream 0.6.0 and add a configurable default storage target, while 0.6.1 adds moving Steam games between libraries. The latest fork build is **0.6.1 (26)**; the complete list is at the end of this section.
+The 25 fork-only commits through `7dbf0842` fall into four groups; their net changes are ported onto upstream 0.6.0 and add a configurable default storage target, while later fork releases add moving Steam and added games between libraries, adopting added folders as Steam installs, USB-drive detection, and faster, fail-loud copies. The latest fork build is **0.6.11 (36)**; the complete list is at the end of this section.
 
 ### Session pacing, GPU, and thermals
 
@@ -119,6 +124,10 @@ The 25 fork-only commits through `7dbf0842` fall into four groups; their net cha
   pending downloads, and manifest move together; the destination is registered as a Steam library
   for the right client, and a failed copy is rolled back. Moves are blocked while a session runs and
   while storage cleanup is active.
+- **Move** on an added game moves its whole folder; exe, prefix record, and library entry follow it.
+  **Install into Steam** adopts a matching folder into that library's `steamapps/common` folder so
+  Steam detects the game on its next start. Doing it by hand works too: copy the folder there
+  yourself and press **Install** in Steam, which verifies the files instead of downloading them.
 - Existing games are not moved automatically; use **Move** to relocate one. Steam libraries keep
   their own **Game storage** setting. If the selected folder is disconnected, DroidDeck asks for a
   target instead of silently using internal storage.
