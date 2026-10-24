@@ -109,6 +109,7 @@ object FileOps {
         val chunk = 8L * 1024 * 1024
         var staging: File? = null
         var created = false
+        var copiedBytes = -1L
         var output: java.nio.channels.FileChannel? = null
         try {
             output = try {
@@ -148,6 +149,7 @@ object FileOps {
                         progress?.onProgress(done[0], total)
                     }
                     if (position < size) throw IOException("Incomplete copy: $position/$size bytes")
+                    copiedBytes = size
                 }
             }
             staging?.let { directory ->
@@ -157,6 +159,11 @@ object FileOps {
                 }
                 if (isCancelled()) throw java.util.concurrent.CancellationException("Copy cancelled: $src")
                 Files.move(copied, target.toPath(), java.nio.file.StandardCopyOption.ATOMIC_MOVE)
+            }
+            // The bytes on disk must match what was read; a mismatch means the copy
+            // is corrupt and the source must be kept.
+            if (copiedBytes < 0 || target.length() != copiedBytes) {
+                throw IOException("Size mismatch after copy: expected $copiedBytes, got ${target.length()} for $src")
             }
             return true
         } catch (e: java.util.concurrent.CancellationException) {
