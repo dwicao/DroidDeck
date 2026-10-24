@@ -174,6 +174,7 @@ class FrontEndActivity : ComponentActivity() {
     private var downloadSource by mutableStateOf(DownloadSource.MODE_AUTO)
     private var downloadMirror by mutableStateOf("")
     private var downloadPrefix by mutableStateOf("")
+    private var downloadProxy by mutableStateOf("")
     private var animationsEnabled by mutableStateOf(true)
     private var launcherIcon by mutableStateOf(LauncherIcon.DARK)
     private var gameStoresEnabled by mutableStateOf(true)
@@ -861,6 +862,7 @@ class FrontEndActivity : ComponentActivity() {
         downloadSource = DownloadSource.mode(this)
         downloadMirror = DownloadSource.mirror(this)
         downloadPrefix = DownloadSource.custom(this)
+        downloadProxy = DownloadSource.proxyHostPort(this)
         DownloadSource.probe()
         animationsEnabled = SessionPrefs.animationsEnabled(this)
         LauncherIcon.repair(this, intent?.component)
@@ -928,6 +930,7 @@ class FrontEndActivity : ComponentActivity() {
                         downloadSource = downloadSource,
                         downloadMirror = downloadMirror,
                         downloadPrefix = downloadPrefix,
+                        downloadProxy = downloadProxy,
                         animationsEnabled = animationsEnabled,
                         launcherIcon = launcherIcon,
                         gameStoresEnabled = gameStoresEnabled,
@@ -1132,6 +1135,10 @@ class FrontEndActivity : ComponentActivity() {
                         onDownloadPrefix = { prefix ->
                             DownloadSource.setCustom(this, prefix)
                             downloadPrefix = DownloadSource.custom(this)
+                        },
+                        onDownloadProxy = { value ->
+                            DownloadSource.setProxy(this, value)
+                            downloadProxy = DownloadSource.proxyHostPort(this)
                         },
                         onHomeApp = { manageHomeApp() },
                         onHomeScreen = { on ->
