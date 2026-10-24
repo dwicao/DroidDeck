@@ -170,6 +170,20 @@ class GameEnvironmentTest(unittest.TestCase):
         self.assertEqual(env["REMOVE"], "inherited")
         self.assertEqual(MODULE["apply_config"](env, config, "43")["CUSTOM"], "shared")
 
+    def test_builtin_game_defaults_apply_and_user_settings_win(self):
+        config = {"version": 1}
+        env = MODULE["apply_config"]({}, config, "349040")
+        self.assertEqual(env["DXVK_GPLASYNCCACHE"], "1")
+        self.assertIn("dxvk.maxFrameRate = 30", env["DXVK_CONFIG"])
+        self.assertNotIn("DXVK_GPLASYNCCACHE", MODULE["apply_config"]({}, config, "349041"))
+        shared = {"version": 1, "shared": {"DXVK_GPLASYNCCACHE": "0"}}
+        self.assertEqual(MODULE["apply_config"]({}, shared, "349040")["DXVK_GPLASYNCCACHE"], "0")
+        per_game = {"version": 1, "games": {"349040": {"DXVK_GPLASYNCCACHE": "0"}}}
+        self.assertEqual(MODULE["apply_config"]({}, per_game, "349040")["DXVK_GPLASYNCCACHE"], "0")
+        dxvk = {"version": 1, "dxvkConfig": "dxvk.maxFrameRate = 60"}
+        merged = MODULE["apply_config"]({}, dxvk, "349040")["DXVK_CONFIG"]
+        self.assertTrue(merged.index("dxvk.maxFrameRate = 30") < merged.index("dxvk.maxFrameRate = 60"))
+
     def test_games_get_their_own_turnip_debug_and_a_game_profile_still_wins(self):
         gpu = MODULE["game_gpu"]
         self.assertEqual(gpu({"TU_DEBUG": "sysmem", "DROIDDECK_GAME_TU_DEBUG": "", "KEEP": "1"}), {"KEEP": "1"})

@@ -253,11 +253,28 @@ def game_gpu(env):
     return result
 
 
+# Proven per-game environment defaults. These apply first, so the user's own
+# shared and per-game settings always win over them. Entries are plain env
+# names to values, except DXVK_CONFIG which is appended to like the user's
+# own dxvkConfig below (DXVK lets the last setting for a key win).
+BUILTIN_GAME_ENV = {
+    # NARUTO SHIPPUDEN: Ultimate Ninja STORM 4. Locks the base frame rate to
+    # 30 (the textbook base for 2x frame generation on a 60 Hz display) and
+    # enables async pipeline compilation so first-time effects hitch for a
+    # frame instead of dropping one.
+    "349040": {
+        "DXVK_CONFIG": "dxvk.maxFrameRate = 30",
+        "DXVK_GPLASYNCCACHE": "1",
+    },
+}
+
+
 def apply_config(env, config, app_id, fixes=None):
     if config.get("version") != 1:
         raise ValueError("unsupported environment configuration")
     result = env.copy()
-    entries = dict(config.get("shared", {}))
+    entries = dict(BUILTIN_GAME_ENV.get(app_id, {}))
+    entries.update(config.get("shared", {}))
     for name, value in (fixes or {}).items():
         if name == "WINEDLLOVERRIDES" and entries.get(name, env.get(name)):
             value = entries.get(name, env.get(name)) + ";" + value
