@@ -102,6 +102,7 @@ object GpuClockPin {
             lastLever = via
             "gpu clock: held at its top ($via)"
         } catch (t: Throwable) {
+            File(context.filesDir, MARKER).delete()
             Log.w(TAG, "pin", t)
             pinned = false
             lever = ""
