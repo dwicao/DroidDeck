@@ -14,6 +14,9 @@ import org.json.JSONObject
  *
  * Rules run in order and the first match wins. A rule fires only when its fix
  * would actually change something, so a repeated crash never claims a fix twice.
+ * A rule that was already applied [MAX_APPLIES] times for the same game without
+ * the session recovering is suppressed: the fix demonstrably does not work for
+ * this install, and the plain retry button stays available.
  */
 object LaunchDoctor {
     data class Signals(
@@ -30,10 +33,16 @@ object LaunchDoctor {
     )
 
     private const val LOG_NAME = "launch-doctor.log"
+    private const val HISTORY_LINES = 50
+    internal const val MAX_APPLIES = 2
 
     fun diagnose(context: Context, signals: Signals): Prescription? {
-        meshShaderRule(context, signals)?.let { return it }
-        steamDownloadRule(context, signals)?.let { return it }
+        if (!suppressed(context, "mesh-shader-12_1", signals.gameId))
+            meshShaderRule(context, signals)?.let { return it }
+        if (!suppressed(context, "steam-download-retry", signals.gameId))
+            steamDownloadRule(context, signals)?.let { return it }
+        if (!suppressed(context, "steam-setup-retry", signals.gameId))
+            steamSetupRule(context, signals)?.let { return it }
         return null
     }
 
@@ -71,11 +80,30 @@ object LaunchDoctor {
      * needs fixing; retrying the session is the repair.
      */
     internal fun steamDownloadRule(context: Context, signals: Signals): Prescription? {
-        val failure = SteamClientSetupFailure.find(signals.logTail.lineSequence()) ?: return null
-        if (!failure.download) return null
+        if (!matchSteamDownload(signals.logTail)) return null
         return Prescription(
             id = "steam-download-retry",
             detail = context.getString(com.droiddeck.launcher.R.string.doctor_download_detail),
+            apply = { true },
+        )
+    }
+
+    internal fun matchSteamDownload(logTail: String): Boolean {
+        val failure = SteamClientSetupFailure.find(logTail.lineSequence()) ?: return false
+        return failure.download
+    }
+
+    /**
+     * The Steam client setup script failed for a non-network reason. Re-running
+     * setup on retry is the only safe action; repeated failures are left to the
+     * plain retry path by the loop guard.
+     */
+    internal fun steamSetupRule(context: Context, signals: Signals): Prescription? {
+        val failure = SteamClientSetupFailure.find(signals.logTail.lineSequence()) ?: return null
+        if (failure.download) return null
+        return Prescription(
+            id = "steam-setup-retry",
+            detail = context.getString(com.droiddeck.launcher.R.string.doctor_setup_detail),
             apply = { true },
         )
     }
@@ -85,6 +113,31 @@ object LaunchDoctor {
         config.games[scope]?.get("VKD3D_FEATURE_LEVEL")?.takeIf { it != null }?.let { return it }
         config.shared["VKD3D_FEATURE_LEVEL"]?.takeIf { it != null }?.let { return it }
         return GameEnvironmentOptions.find("VKD3D_FEATURE_LEVEL")?.value
+    }
+
+    /**
+     * Counts applied fixes for this rule+game in recent history. A fix applied
+     * [MAX_APPLIES] times while the session keeps failing demonstrably does not
+     * work for this install, so the rule is suppressed. Never throws.
+     */
+    internal fun suppressed(context: Context, ruleId: String, gameId: String?): Boolean =
+        appliedCount(context, ruleId, gameId) >= MAX_APPLIES
+
+    internal fun appliedCount(context: Context, ruleId: String, gameId: String?): Int {
+        val lines = runCatching {
+            val file = File(context.filesDir, LOG_NAME)
+            if (!file.isFile) return 0
+            file.readLines().filter { it.isNotBlank() }.takeLast(HISTORY_LINES)
+        }.getOrDefault(emptyList())
+        var count = 0
+        for (line in lines) {
+            val entry = runCatching { JSONObject(line) }.getOrNull() ?: continue
+            if (!entry.optBoolean("applied", false)) continue
+            if (entry.optString("rule", "") != ruleId) continue
+            val game = if (entry.isNull("game")) null else entry.optString("game")
+            if (game == gameId) count++
+        }
+        return count
     }
 
     /** Appends one JSON line per diagnosis for the knowledge base. Never throws. */

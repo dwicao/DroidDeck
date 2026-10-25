@@ -104,4 +104,45 @@ class LaunchDoctorTest {
     fun unknownLogYieldsNoPrescription() {
         assertNull(LaunchDoctor.diagnose(context, signals("all good, exit 0")))
     }
+
+    @Test
+    fun steamSetupFailureWithoutCurlErrorOffersSetupRetry() {
+        val tail = "checking the Steam client\n== steam: the Steam client could not be set up\n"
+        val found = LaunchDoctor.diagnose(context, LaunchDoctor.Signals(tail, 1, null, null))
+        assertNotNull(found)
+        assertEquals("steam-setup-retry", found!!.id)
+    }
+
+    @Test
+    fun steamDownloadTakesPrecedenceOverSetupRetry() {
+        val tail = "checking the Steam client\ncurl: (7) boom\n== steam: the Steam client could not be set up\n"
+        val found = LaunchDoctor.diagnose(context, LaunchDoctor.Signals(tail, 1, null, null))
+        assertNotNull(found)
+        assertEquals("steam-download-retry", found!!.id)
+    }
+
+    @Test
+    fun ruleSuppressedAfterRepeatedApplies() {
+        val tail = "checking the Steam client\ncurl: (7) boom\n== steam: the Steam client could not be set up\n"
+        val none = LaunchDoctor.Signals(tail, 1, null, null)
+        val first = LaunchDoctor.diagnose(context, none)
+        assertNotNull(first)
+        LaunchDoctor.record(context, first, null, applied = true)
+        assertNotNull(LaunchDoctor.diagnose(context, none))
+        LaunchDoctor.record(context, first, null, applied = true)
+        assertNull(LaunchDoctor.diagnose(context, none))
+    }
+
+    @Test
+    fun loopGuardIsPerGameAndIgnoresUnapplied() {
+        val tail = "checking the Steam client\ncurl: (7) boom\n== steam: the Steam client could not be set up\n"
+        val signals = LaunchDoctor.Signals(tail, 1, "111", "111")
+        val found = LaunchDoctor.diagnose(context, signals)!!
+        LaunchDoctor.record(context, found, "111", applied = false)
+        LaunchDoctor.record(context, found, "222", applied = true)
+        assertNotNull(LaunchDoctor.diagnose(context, signals))
+        assertEquals(0, LaunchDoctor.appliedCount(context, "steam-download-retry", "111"))
+        assertEquals(1, LaunchDoctor.appliedCount(context, "steam-download-retry", "222"))
+        assertEquals(0, LaunchDoctor.appliedCount(context, "steam-download-retry", null))
+    }
 }

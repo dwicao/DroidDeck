@@ -112,6 +112,10 @@ Everything below ships in **1.0.0 (40)** and is independent of upstream releases
 - A launch that stops early is measured against its manifest and, for Unity Addressables titles,
   its catalog; a short install is named with the missing bundle count instead of looking like a game
   that simply exited.
+- A failed session is matched against known failure signatures and offers a one-tap fix-and-run
+  (**Launch Doctor**): UE5 mesh-shader crashes pin the game to `VKD3D_FEATURE_LEVEL 12_1`, failed
+  Steam client downloads or setup re-run on retry. A fix applied twice without recovery stops being
+  offered, and every diagnosis is appended to `launch-doctor.log` as one JSON line.
 
 ### Storage
 
