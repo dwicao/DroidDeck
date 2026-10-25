@@ -81,7 +81,10 @@ object FileOps {
             return false
         }
         if (src.isDirectory) {
-            if (!dst.exists() && !dst.mkdirs()) return false
+            val created = if (dst.exists()) false else {
+                if (!dst.mkdirs()) return false
+                true
+            }
             try {
                 var allOk = true
                 // listFiles() resolves children in one call instead of rebuilding a File per name.
