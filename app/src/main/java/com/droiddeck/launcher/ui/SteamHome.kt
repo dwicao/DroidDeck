@@ -6,7 +6,6 @@ import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.runtime.State
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -334,7 +333,7 @@ private fun CapsuleFan(games: List<Library.SteamGame>) {
         for (i in games.indices.reversed()) {
             val slot = slots[i]
             val h = maxHeight * slot.height
-            val v: State<Float> = floats[i]
+            val v = floats[i]
             val look = WallCapsule(artBrush(hueOf(games[i].name)), games[i].art)
             val art = look.art?.let { rememberCapsuleArt(it, with(density) { Size((h * 2f / 3f).toPx(), h.toPx()) }, radius) }
             Spacer(
