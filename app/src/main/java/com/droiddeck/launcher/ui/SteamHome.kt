@@ -4,12 +4,9 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.foundation.layout.fillMaxWidth
 import com.droiddeck.launcher.R
 import androidx.compose.ui.res.stringResource
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.RepeatMode
 import androidx.compose.runtime.State
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -307,11 +304,17 @@ private fun DrawScope.drawCapsule(look: WallCapsule, art: Painter?, radius: Floa
 private fun CapsuleFan(games: List<Library.SteamGame>) {
     val pal = LocalPalette.current
     val density = LocalDensity.current
-    val transition = rememberInfiniteTransition(label = "fan")
-    val floats = listOf(9_000, 11_000, 13_000).map { ms ->
-        transition.animateFloat(0f, 1f, infiniteRepeatable(tween(ms, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "float")
-    }
+    // The fan floats once on appearance and then holds still. An infinite transition would
+    // keep composing every frame forever (~2.4k frames per 10 s idle); a single run costs
+    // a few hundred frames total and then drops to zero.
     val still = Motion.scale == 0f
+    val floats = listOf(9_000, 11_000, 13_000).map { ms ->
+        val anim = remember(ms) { Animatable(0f) }
+        LaunchedEffect(ms, games) {
+            if (!still && anim.value == 0f) anim.animateTo(1f, tween(ms, easing = FastOutSlowInEasing))
+        }
+        anim
+    }
     val slots = listOf(
         FanSlot(0.54f, 0.14f, 0.62f, -9f),
         FanSlot(0.70f, 0.24f, 0.56f, 5f),
