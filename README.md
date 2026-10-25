@@ -9,7 +9,7 @@
 
 DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton.
 
-> **This fork.** This tree is rebased onto upstream **0.6.0** (`22eac083`) and keeps the fork's storage, pacing, GPU, and game-kit changes. **Play from any folder:** internal storage, an SD card, a USB drive or SSD, or any folder you pick, and move installed Steam games there from **Setup > Storage**. The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes.
+> **This fork.** Independent since **1.0.0**: this tree adds the fork's storage, pacing, GPU, game-kit, compatibility, and stability changes on top of upstream `main` (merged through `8d407aa1`), and no longer tracks upstream release-by-release — upstream fixes are picked selectively instead. **Play from any folder:** internal storage, an SD card, a USB drive or SSD, or any folder you pick, and move installed Steam games there from **Setup > Storage**. The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes. What came from upstream vs the fork is tracked in [docs/upstream-triage.md](docs/upstream-triage.md).
 
 <p align="center"><a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a></p>
 
@@ -42,14 +42,12 @@ DroidDeck does not tie your games to internal storage. **Setup > Storage** can k
 - **A USB drive or SSD**, including drives Android does not report as app-specific external storage.
 - **Any writable folder** through **Choose folder…**; DroidDeck creates a `Games` folder inside it.
 
-**Default storage** applies to new store installs and the Epic Games Launcher, while each Steam library keeps its own **Game storage** choice. Games that are already installed do not have to stay put: **Setup > Storage > Games > Move** moves a Steam game, its Proton prefix, shader cache, workshop content, pending downloads, and manifest into internal storage, the SD card, a configured games folder, or a picked folder. The destination is registered as a Steam library, so Steam keeps detecting and launching the game, and a failed copy puts the files back. Stop the session first; a move is not resumable, so keep DroidDeck open until it finishes.
+**Default storage** applies to new store installs and the Epic Games Launcher, while each Steam library keeps its own **Game storage** choice. Games that are already installed do not have to stay put: **Setup > Storage > Games > Move** moves a Steam game, its Proton prefix, shader cache, workshop content, pending downloads, and manifest into internal storage, the SD card, a configured games folder, or a picked folder. The destination is registered as a Steam library, so Steam keeps detecting and launching the game, and a failed copy puts the files back. Stop the session first; moves can be cancelled from the progress dialog, and an interrupted move is reported on the Storage page with a one-tap discard of the partial copy.
 - Games added with **Games > Add a game** are listed with their full size under **Added games** and have their own **Move**. Their folder, picked exe, prefix record, and library entry move together.
 - If an added folder matches a Steam game whose install folder is missing, **Install into Steam** moves it into that library's `steamapps/common` folder and Steam adopts it on its next start. Pick the game yourself when it is not matched automatically.
 - Doing it by hand works too: copy the game folder into the library's `steamapps/common/<installDir>` yourself, press **Install** in Steam, and Steam verifies the existing files instead of downloading them again.
 
 If a chosen folder is disconnected, DroidDeck asks for a target instead of silently falling back to internal storage. Plugged-in USB drives appear in the file and folder pickers; if a drive is visible but not readable, grant DroidDeck **All files access** when asked.
-
-If a chosen folder is disconnected, DroidDeck asks for a target instead of silently falling back to internal storage.
 
 ## Smart glasses
 
@@ -71,7 +69,7 @@ remain the reliable ways to keep a higher ceiling.
 
 ## Fork changes
 
-The 25 fork-only commits through `7dbf0842` fall into four groups; their net changes are ported onto upstream 0.6.0 and add a configurable default storage target, while later fork releases add moving Steam and added games between libraries, adopting added folders as Steam installs, USB-drive detection, and faster, fail-loud copies. The latest fork build is **0.6.11 (36)**; the complete list is at the end of this section.
+The fork-only work below is cumulative through **1.0.0** and independent of upstream releases (see the note at the top). The latest fork build is **1.0.0 (40)**; the complete list is at the end of this section.
 
 ### Session pacing, GPU, and thermals
 
@@ -147,7 +145,20 @@ The 25 fork-only commits through `7dbf0842` fall into four groups; their net cha
 - CI hosts the Debian bullseye image used by the preload build from a release rather than Docker Hub,
   avoiding the rate limit that failed the build.
 - Documentation and tests in the range cover the pacing table, GPU ceiling, chosen-limit note,
-  short-install record, and the 0.4.11 field session. This release is 0.6.0 (25).
+  short-install record, and the 0.4.11 field session.
+
+### 1.0.0: universal compatibility and stability
+
+- **Built-in per-game environment defaults** (`droiddeck-game-env`): Naruto Storm 4 gets a
+  locked 30 FPS base plus async pipeline compilation; user settings always win.
+- **Safer graphics defaults**: `VKD3D_FEATURE_LEVEL` 12_2 → 12_1 (UE5 mesh-shader crashes).
+- **Idle-friendly Steam home**: the floating capsule fan plays once on appearance instead of
+  recomposing forever (~2.4k frames per 10 s idle).
+- **Working Browse buttons**: backported upstream Steam file-dialog fixes.
+- **GOG cloud saves at the location root** (with old-layout migration), Steam client CDN probing
+  with resume handover, Xbox sign-in diagnostics, Ubisoft-via-Connect launch, shared games between
+  arm64 and x86-64 clients, experimental external-display output, and an HTTP proxy option —
+  all ported non-breaking upstream PRs, tracked in [docs/upstream-triage.md](docs/upstream-triage.md).
 
 <details>
 <summary><strong>All 25 commits through <code>7dbf0842</code></strong></summary>
