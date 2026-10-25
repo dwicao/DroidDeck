@@ -172,7 +172,7 @@ class PerfHud(context: Context) {
         })
     }
 
-    /** The thermal status and the top CPU cluster's clock, so a settling frame rate has a reason next to it. */
+    /** The thermal status, the top CPU cluster's clock, and the GPU/CPU temperatures next to them. */
     private fun withThrottle(text: String): String {
         val state = ThrottleWatch.summary
         return if (state.isEmpty()) text else "$text  ·  $state"

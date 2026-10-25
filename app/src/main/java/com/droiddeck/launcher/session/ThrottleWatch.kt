@@ -279,6 +279,8 @@ object ThrottleWatch {
                 append(" MHz")
                 if (GpuClockPin.suspended) append(" guard")
             }
+            gpuTemp?.let { append(String.format(Locale.US, "  gpu %.0f°C", it)) }
+            cpuTemp?.let { append(String.format(Locale.US, "  cpu %.0f°C", it)) }
         }
     }
 
