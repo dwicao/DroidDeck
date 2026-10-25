@@ -5,23 +5,15 @@
   </picture>
 </p>
 
-<h3 align="center">Blazing Fast Performance</h3>
+<h3 align="center">DroidDeck-RE — Blazing Fast Performance, Rock-Solid Stability</h3>
 
-DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton.
+DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton. **DroidDeck-RE is the independent, stable release line of that project**: the same experience, plus everything below — maintained separately from upstream, with its own versioning starting at **1.0.0**.
 
-> **This fork.** Independent since **1.0.0**: this tree adds the fork's storage, pacing, GPU, game-kit, compatibility, and stability changes on top of upstream `main` (merged through `8d407aa1`), and no longer tracks upstream release-by-release — upstream fixes are picked selectively instead. **Play from any folder:** internal storage, an SD card, a USB drive or SSD, or any folder you pick, and move installed Steam games there from **Setup > Storage**. The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes. What came from upstream vs the fork is tracked in [docs/upstream-triage.md](docs/upstream-triage.md).
+> **Why RE instead of upstream?** Upstream moves fast and breaks things; RE picks only what is proven. Every change here is small, tested, and documented: play games from **any folder** (internal, SD card, USB drive or SSD), move and adopt Steam games between libraries without reinstalling, per-game environment defaults (locked 30 FPS base + async shaders where proven), safer graphics defaults, an idle-friendly Steam home, working Steam file dialogs, fixed GOG cloud saves, HTTP proxy downloads, Ubisoft-via-Connect, shared libraries between arm64 and x86-64 clients, and experimental external-display output. Full accounting of what was taken from upstream, what was skipped, and why lives in [docs/upstream-triage.md](docs/upstream-triage.md).
+
+The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck-RE/releases); upstream releases do not include these changes. Installs over previous RE releases keep app data.
 
 <p align="center"><a href="https://discord.gg/JRGAvawjsm"><img src="https://img.shields.io/badge/Discord-Join%20the%20community-5865F2?logo=discord&logoColor=white" alt="Join the DroidDeck Discord"></a></p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/267852?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-267852" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=C" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"/></a>
-  <a href="https://trendshift.io/repositories/267852?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-267852" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/daily?language=Kotlin" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"/></a>
-</p>
-
-<p align="center">
-  <a href="https://trendshift.io/repositories/267852?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-267852" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/weekly?language=C" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"/></a>
-  <a href="https://trendshift.io/repositories/267852?utm_source=trendshift-badge&amp;utm_medium=badge&amp;utm_campaign=badge-trendshift-267852" target="_blank" rel="noopener noreferrer"><img src="https://trendshift.io/api/badge/trendshift/repositories/267852/weekly?language=Kotlin" alt="Droid-Deck%2FDroidDeck | Trendshift" width="250" height="55"/></a>
-</p>
 
 <p align="center"><img src="docs/releases/media/0.2.0/launch-into-steam.gif" width="80%" alt="Tapping DroidDeck on the Android home screen and landing in Steam Big Picture"></p>
 
@@ -29,7 +21,7 @@ DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big 
 
 ## Requirements and install
 
-Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adreno 6xx is experimental: DirectX 11 uses DXVK 2 and may run, and DirectX 12 games can still crash. Mali, Xclipse, PowerVR, and Adreno 710 are unsupported. No root is required. Allow about 3 GB for the runtime and 1.1 GB more for the desktop and emulators. Install the APK from [Releases](https://github.com/dwicao/DroidDeck/releases), install the Linux runtime, then press **Play** and sign in. Steam downloads on first launch. Install **Desktop & apps** to use the desktop and emulators. The **Store** installs Linux apps and games from Flathub (ARM64 builds) with Flatpak; with additional options to install Appimages and set up scripts. **Stores** (Setup › Stores › "Show Stores in the rail") signs in to GOG, Epic Games and Amazon Games and downloads games into the Games storage. Epic keeps its direct API install path. Opening Epic Stores prepares Epic’s official Linux launcher preview. When installed, Epic games launched from DroidDeck use that client, and games installed in the client are imported into DroidDeck’s library and shortcuts. The x86-64 client runs through FEX on ARM and DroidDeck retains its Proton hooks; this preview and ARM setup are outside Epic’s listed Linux support. The cog on a store’s chip row sets its opening tab and download speed tier.
+Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adreno 6xx is experimental: DirectX 11 uses DXVK 2 and may run, and DirectX 12 games can still crash. Mali, Xclipse, PowerVR, and Adreno 710 are unsupported. No root is required. Allow about 3 GB for the runtime and 1.1 GB more for the desktop and emulators. Install the APK from [Releases](https://github.com/dwicao/DroidDeck-RE/releases), install the Linux runtime, then press **Play** and sign in. Steam downloads on first launch. Install **Desktop & apps** to use the desktop and emulators. The **Store** installs Linux apps and games from Flathub (ARM64 builds) with Flatpak; with additional options to install Appimages and set up scripts. **Stores** (Setup › Stores › "Show Stores in the rail") signs in to GOG, Epic Games and Amazon Games and downloads games into the Games storage. Epic keeps its direct API install path. Opening Epic Stores prepares Epic’s official Linux launcher preview. When installed, Epic games launched from DroidDeck use that client, and games installed in the client are imported into DroidDeck’s library and shortcuts. The x86-64 client runs through FEX on ARM and DroidDeck retains its Proton hooks; this preview and ARM setup are outside Epic’s listed Linux support. The cog on a store’s chip row sets its opening tab and download speed tier.
 
 On Android 14 and newer, before Steam launches, you must turn on **Disable child process restrictions** in Developer options. If this option is not available in developer settings (Android 12 and 13 devices), first launch of Steam will present a "Fix it for me" button, which will help automate the setup process.
 
@@ -67,9 +59,9 @@ zone. On an SM-F946B running NSUNS4 at 1280x720, 0.4.11 held 30 FPS (60 with LSF
 thermal, mostly at 475 MHz with occasional 295 MHz. A cooler mount and a charger with headroom
 remain the reliable ways to keep a higher ceiling.
 
-## Fork changes
+## What RE adds
 
-The fork-only work below is cumulative through **1.0.0** and independent of upstream releases (see the note at the top). The latest fork build is **1.0.0 (40)**; the complete list is at the end of this section.
+Everything below ships in **1.0.0 (40)** and is independent of upstream releases (see the note at the top). Release notes with APKs live on the [Releases page](https://github.com/dwicao/DroidDeck-RE/releases).
 
 ### Session pacing, GPU, and thermals
 
@@ -140,7 +132,7 @@ The fork-only work below is cumulative through **1.0.0** and independent of upst
   their own **Game storage** setting. If the selected folder is disconnected, DroidDeck asks for a
   target instead of silently using internal storage.
 
-### Build and documentation
+### Release engineering
 
 - CI hosts the Debian bullseye image used by the preload build from a release rather than Docker Hub,
   avoiding the rate limit that failed the build.
@@ -161,36 +153,9 @@ The fork-only work below is cumulative through **1.0.0** and independent of upst
   all ported non-breaking upstream PRs, tracked in [docs/upstream-triage.md](docs/upstream-triage.md).
 
 <details>
-<summary><strong>All 25 commits through <code>7dbf0842</code></strong></summary>
+<summary><strong>Full history</strong></summary>
 
-| Commit | Area | Change |
-| --- | --- | --- |
-| [`18fdcc7a`](https://github.com/dwicao/DroidDeck/commit/18fdcc7a) | Pacing | Pace the guest from the panel's own refresh rate |
-| [`86bbb4c1`](https://github.com/dwicao/DroidDeck/commit/86bbb4c1) | Game kits | Export/import a Steam install and manifest |
-| [`527ca3dc`](https://github.com/dwicao/DroidDeck/commit/527ca3dc) | x86 | Name a missing x86 runtime instead of letting the game exit |
-| [`e69928fa`](https://github.com/dwicao/DroidDeck/commit/e69928fa) | Steam | Reap a stray client before the next session |
-| [`95bb912b`](https://github.com/dwicao/DroidDeck/commit/95bb912b) | x86 | Run on the soldier runtime; expose Export kit per game |
-| [`31a129b1`](https://github.com/dwicao/DroidDeck/commit/31a129b1) | x86 | Support Valve's `fex-compat-tool`; prepare RootFS every session |
-| [`31629dc8`](https://github.com/dwicao/DroidDeck/commit/31629dc8) | x86 / imports | Drop `GLIBC_TUNABLES` for x86 titles; finish stalled imports; fix store search |
-| [`44c11b66`](https://github.com/dwicao/DroidDeck/commit/44c11b66) | Imports | Keep imports confirmed by older fingerprints |
-| [`c3d2760d`](https://github.com/dwicao/DroidDeck/commit/c3d2760d) | CI | Host the Debian image the preload build loads |
-| [`5f2085e2`](https://github.com/dwicao/DroidDeck/commit/5f2085e2) | Diagnostics | Per-game launch log and post-exit switches |
-| [`7d822c7f`](https://github.com/dwicao/DroidDeck/commit/7d822c7f) | Diagnostics | Report an install that is short of its own manifest |
-| [`a4eed074`](https://github.com/dwicao/DroidDeck/commit/a4eed074) | Docs | Explain what a short install does |
-| [`4a775f16`](https://github.com/dwicao/DroidDeck/commit/4a775f16) | Pacing | Pace for the panel and record platform caps |
-| [`45ff5edf`](https://github.com/dwicao/DroidDeck/commit/45ff5edf) | CPU | Stop excluding the prime core from the game's core set |
-| [`e14c4246`](https://github.com/dwicao/DroidDeck/commit/e14c4246) | Release | 0.4.8 |
-| [`ced7a1b9`](https://github.com/dwicao/DroidDeck/commit/ced7a1b9) | Docs | Say which numbers the pacing report carries |
-| [`ba5a3bcc`](https://github.com/dwicao/DroidDeck/commit/ba5a3bcc) | GPU | Hold the GPU clock by default and re-assert it |
-| [`1fe12f94`](https://github.com/dwicao/DroidDeck/commit/1fe12f94) | Tests | Report a chosen limit that overshoots the panel |
-| [`54159630`](https://github.com/dwicao/DroidDeck/commit/54159630) | Docs | Read the GPU ceiling, not its floor |
-| [`ad350d97`](https://github.com/dwicao/DroidDeck/commit/ad350d97) | GPU | Take the GPU's top back when the platform lifts a clamp |
-| [`3b2eee95`](https://github.com/dwicao/DroidDeck/commit/3b2eee95) | Docs | Record what 0.4.10 found in the 0.4.9 session |
-| [`2f179b59`](https://github.com/dwicao/DroidDeck/commit/2f179b59) | Release | 0.4.10 |
-| [`02623e76`](https://github.com/dwicao/DroidDeck/commit/02623e76) | Thermal | Report GOS mode and thermal data; add the opt-in guard |
-| [`13e5a875`](https://github.com/dwicao/DroidDeck/commit/13e5a875) | Thermal | Gate the guard on thermal LIGHT and word a released pin |
-| [`7dbf0842`](https://github.com/dwicao/DroidDeck/commit/7dbf0842) | Docs | Record the 1280x720 thermal-guard result |
-
+Every fork change ships in a dated release with notes under [`docs/releases/`](docs/releases/) — see the [Releases page](https://github.com/dwicao/DroidDeck-RE/releases) for the APKs. The commit history stays linear and reviewable; upstream work taken in is listed per item in [docs/upstream-triage.md](docs/upstream-triage.md).
 </details>
 
 ## Community
