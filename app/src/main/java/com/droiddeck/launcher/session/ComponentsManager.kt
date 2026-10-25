@@ -830,7 +830,7 @@ object ComponentsManager {
     }
 
     internal fun unpackedCacheKey(filename: String): String = safeName(filename.removeSuffix(".wcp")).also {
-        require(it != "." && it != "..") { "Invalid component cache name" }
+        require(it.any { c -> c != '.' }) { "Invalid component cache name" }
     }
 
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
