@@ -55,9 +55,9 @@ ported. Game-specific workarounds live in `BUILTIN_GAME_ENV`
 - #1450 custom CLI args for “Start without Steam” (needs per-game UI: storage + drawer field + wire-in).
 - #1451 file-browser history/Back/game-save shortcuts (FileManager UX work).
 - #1447 Arabic BiDi rendering (scope check first).
-- #960 Steam overlay FPS vs LSFG overlay (investigate: likely counts different stages; answer or small fix).
-- #950 display pinned to 60 Hz despite 165 Hz request + CPU ramp lag (investigate Gamescope/output refresh path).
-- #1507 gamepad halves FPS + settings-independent lag (investigate input polling cost).
+- #960 Steam overlay FPS vs LSFG overlay (investigated, likely not a bug: Steam counts game-presented frames = base FPS, LSFG/device overlay counts compositor output frames = 2x with LSFG 2x. Matches the reporter's numbers. Action: FAQ line, no code).
+- #950 display pinned to 60 Hz + CPU ramp (investigated: `PerfMode` already requests the best display mode via `preferredDisplayModeId`, `refreshHz()` prefers requested over running rate, and gamescope gets `-r $BL_FPS/$BL_REFRESH`. On the reporter's device the panel may not expose 165 Hz to the app, or the OS holds 60 Hz without touch input. Needs `dumpsys display` + session log from the reporter; no blind change).
+- #1507 gamepad halves FPS (hypothesis: input/polling cost or vsync interplay on SD Elite; needs per-device profiling with MangoHud frametime split. No blind change).
 - #1187 Xbox library limited to 11 games (needs Xbox account; untestable locally — help wanted).
 - #1468 download resume: investigated — `Downloader` already resumes with strong-ETag validation and checksum checkout; length-fallback without a validator deliberately NOT added (unsafe). Remaining work is diagnosis, not code.
 - Deferred #1443 port (see above) and deferred move-safety stack (#1520 follow-up: journal/cancel for moves).
