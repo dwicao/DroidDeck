@@ -535,8 +535,8 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private val pickOpenKit = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val then = onSavePicked.also { onSavePicked = null } ?: return@registerForActivityResult
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let(then)
+        val then = LauncherJobs.savePicked.also { LauncherJobs.savePicked = null } ?: return@registerForActivityResult
+        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { then(this, it) }
     }
 
     /**
@@ -573,7 +573,7 @@ class FrontEndActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, detail, android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        onSavePicked = { folder ->
+        LauncherJobs.savePicked = { _, folder ->
             saveAction(getString(R.string.kit_export_busy, game.name)) {
                 val saved = com.droiddeck.launcher.frontend.GameKit.export(
                     source = source!!, destination = folder,
@@ -595,7 +595,7 @@ class FrontEndActivity : ComponentActivity() {
         // A full library chooser can be added later; the internal library is always present.
         val library = targets.last { it.second == java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(this), "root/.local/share/Steam") }
             ?: targets.first()
-        onSavePicked = { file ->
+        LauncherJobs.savePicked = { _, file ->
             saveAction(getString(R.string.kit_import)) {
                 val imported = com.droiddeck.launcher.frontend.GameKit.import(
                     archive = file, library = library.second,

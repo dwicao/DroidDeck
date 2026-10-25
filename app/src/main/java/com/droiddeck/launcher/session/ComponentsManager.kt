@@ -835,7 +835,9 @@ object ComponentsManager {
 
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
         val name = safeName(file)
-        checkPackageUnused(context, loadState(context), name)
+        val state = loadState(context)
+        var changed = false
+        checkPackageUnused(context, state, name)
         val f = File(packagesDir(context), name)
         check(f.isFile) { context.getString(R.string.cmgr_package_not_stored, name) }
         val profiles = state.sub("profiles")
