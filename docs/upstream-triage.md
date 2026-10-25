@@ -34,6 +34,9 @@ ported. Game-specific workarounds live in `BUILTIN_GAME_ENV`
 | #1521 (Xbox sign-in diagnostics + loopback) | Port of 5 commits | `d379768f` … (5 commits) |
 | #1509 (share games arm64/x86-64) | Port of 3 commits | `85b16398` … (3 commits) |
 | #1464 (external display, experimental) | Port of 4 commits | `e0352134` … (4 commits) |
+| #947 (statx on kernels < 4.11) | Port as-is (byte-identical): fastpath falls back to newfstatat + manual stat-to-statx fill | `1eaea293` |
+| #970 (GOG Galaxy SDK cloud saves, empty locations) | Adapted to the fork's location-root layout: empty `locations` + enabled resolves to the SDK `%LocalAppData%` folder under `__default` (reuses the location prefix strip/re-add), cached-none retried after a day, GET peels GOG PUT-gzip, ISO-8601 `last_modified` honored | `c7af2498` (+ `GogCloudEncodingTest`) |
+| #1380 (Steam SIGILL exit 132, gamescope without a Vulkan device) | Port of log classifier (`SessionLaunchFailure`), failure-screen hints, Turnip auto-selection leaving non-Adreno GPUs on the system driver, CPU `Features` in device reports, web-helper CPU check in `droiddeck-steam-x64` + tests | `bfa6178b` (+ `SessionLaunchFailureTest`, `DeviceReportCpuTest`, `TurnipDriverAutoTest` additions, `test_steam_x64_cpu.py`, `docs/development/steam-launch-hardware.md`) |
 | #1413 (tags in About) | GitHub repo topics set (android, steam, proton, wine, linux-gaming, emulation, vulkan, adreno, game-launcher) | no code change |
 | #1487 (stretch screen) | Already on fork: `stretch16x9` pref + ModeSettingsDialog UI + gamescope `-S stretch` | no code change |
 | #1468 (download resume) | `Downloader` already resumes with strong-ETag validation + checksum checkout and all component callers pass `resume=true`. Length-based resume without a validator deliberately NOT added (unsafe join). | no code change |
@@ -45,6 +48,13 @@ ported. Game-specific workarounds live in `BUILTIN_GAME_ENV`
 - #744 USB storage (root mounts, +1165): superseded on fork by the no-root enumeration work; root-mount half not wanted.
 - #1003 Steam CDN resumable stack (21 commits): already upstream (= on fork via sync: #623 + #587 cover resume/fallback). Port attempt aborted as duplicate.
 - #1443 do-not-mount phone storage: conflicts with fork Xbox binds/fast-path; needs a native reimplementation. Deferred.
+- #671 prevent overlapping startup/teardown: DEFERRED until upstream merges. Fork session code diverged (storage-anywhere move stack, pacing block, Launch Doctor, OrphanReaper keep/release) and the PR author still flags device testing. Revisit post-merge as an adaptation, not a line-port.
+- #564 target API 36: DEFERRED until upstream merges. Atomic platform migration (SELinux `untrusted_app` domain loses `execute_no_trans`/`execmod`, noexec preload rewrite, FGS types, AllFilesAccess centralization); the fork's storage-anywhere stack is unverified under the new domain and CI cannot test enforcing SELinux + USB drives. Revisit post-merge with on-device validation.
+- #881 16KB ELF alignment: BLOCKED. The six 4 KB `jniLibs` (PulseAudio bundle, libltdl, libsndfile) need an NDK rebuild recipe that is not in the repo, plus an audio runtime test CI cannot provide. Confirmed present at 0x1000 in-tree; everything else is 0x4000+.
+- #1461 X11 keyboard dead after taps: INVESTIGATED, no port. Root cause is in gamescope's wlserver touch emulation (emulated button press without `XSetInputFocus`); the fix belongs in the compositor C++ + rebuild + device test, not in the launcher. Same class as skipped input overhauls.
+- #1123 intermittent Xwayland start failure: no Doctor rule — the failure is stuck-at-loading (no session end, no signature in the report). Needs a startup watchdog, not a post-mortem rule.
+- #1541 clean exit-0 death (~3.5 min, license/timed check): no programmatic fix; documents a Launch Doctor blind spot (exit 0 = success path).
+- #1533 session LOW_MEMORY-killed after zRAM compress: MONITOR. Possible correlation with the ported #1406 (compress after focus); no code change without reporter logs proving causation.
 - #1439, #1202, #1216, #1305, #1529 (input overhauls, +1k–7k): too big/risky to port blind; upstream should land them first.
 - #1460 merge Libraries (+2244), #1502 Qualcomm backend (+6011), #1442 syncthing (+2448), #1061 debug logs (+1278), #1074 diagnostics (+215), #1209 done above; #1042 cancelled download (−), #1007 3 Mbps (needs diagnosis, maybe same as #1003 area).
 - Game-specific: #1522 Skyrim XACT (needs component install, not just env), #1472 Cyberpunk TU_DEBUG, #1471, #1477, #1490, #1489, #1526, #1037, #1040, #1043, #1126, #1069, #1093, #1120, #1142, #1147, #1180, #1185, #1196, #1212, #1223 (same class as #1478, covered), #1059 (same class as #1478, covered).
@@ -61,3 +71,4 @@ ported. Game-specific workarounds live in `BUILTIN_GAME_ENV`
 - #1187 Xbox library limited to 11 games (needs Xbox account; untestable locally — help wanted).
 - #1468 download resume: investigated — `Downloader` already resumes with strong-ETag validation and checksum checkout; length-fallback without a validator deliberately NOT added (unsafe). Remaining work is diagnosis, not code.
 - Deferred #1443 port (see above) and deferred move-safety stack (#1520 follow-up: journal/cancel for moves).
+- #1501 missing OpenAL32.dll (DiRT 3): DONE via the Launch Doctor missing-DLL rule — installs the providing component (oalinst/xact/d3dx9), enables it in the game's picks, and retries.
