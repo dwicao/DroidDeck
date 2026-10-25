@@ -105,12 +105,12 @@ collect_steam_logs() {
     cp "$games_state"/*.json "$BL_DEBUG_DIR/droiddeck-games/" 2>/dev/null
   fi
   local manifest
-  if [ -d "$steam_root/steamapps" ] && mkdir -p "$BL_DEBUG_DIR/steamapps" 2>/dev/null; then
-    for manifest in "$steam_root"/steamapps/appmanifest_*.acf; do
+  if [ -d "${steam_root:-}/steamapps" ] && mkdir -p "$BL_DEBUG_DIR/steamapps" 2>/dev/null; then
+    for manifest in "${steam_root:-}"/steamapps/appmanifest_*.acf; do
       [ -f "$manifest" ] || continue
       grep -q '"installdir"[[:space:]]*"DroidDeck-' "$manifest" 2>/dev/null && cp "$manifest" "$BL_DEBUG_DIR/steamapps/" 2>/dev/null
     done
-    ls -1 "$steam_root/steamapps/downloading" > "$BL_DEBUG_DIR/steamapps/downloading.txt" 2>/dev/null
+    ls -1 "${steam_root:-}/steamapps/downloading" > "$BL_DEBUG_DIR/steamapps/downloading.txt" 2>/dev/null
   fi
 }
 trap 'collect_steam_logs 2>/dev/null || true' TERM INT HUP
@@ -236,7 +236,9 @@ if [ -z "${BL_INSIDE:-}" ]; then
       echo "== gamescope: games at ${nested}x${height} stretched to the ${width}x${height} output"
     fi
   fi
-  if [ "$mode" = steam ]; then
+  # Off unless Performance asks for it. Compositing the cursor here adds a second
+  # plane on the phone's compositor; a controller-driven cursor is the reason to turn it on.
+  if [ "$mode" = steam ] && [ "${BL_CURSOR_COMPOSITE:-0}" = 1 ]; then
     export gamescope_cursor_composite=2
   fi
   args=(--backend wayland --expose-wayland -f -W "$width" -H "$height" -w "$nested" -h "$height")
