@@ -534,11 +534,6 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
-    private val pickOpenKit = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { r ->
-        val then = LauncherJobs.savePicked.also { LauncherJobs.savePicked = null } ?: return@registerForActivityResult
-        if (r.resultCode == RESULT_OK) InAppFilePicker.pickedFile(r.data)?.let { then(this, it) }
-    }
-
     /**
      * The client installs it like any other depot, which is the only way these two exist on the
      * guest. Started one at a time, as the guest asks for them: a second press picks up whatever
@@ -573,7 +568,7 @@ class FrontEndActivity : ComponentActivity() {
             android.widget.Toast.makeText(this, detail, android.widget.Toast.LENGTH_LONG).show()
             return
         }
-        LauncherJobs.savePicked = { _, folder ->
+        pickSave(LauncherJobs.SavePicker.DIRECTORY, InAppFilePicker.buildDirIntent(this, getString(R.string.kit_export_title, game.name))) { _, folder ->
             saveAction(getString(R.string.kit_export_busy, game.name)) {
                 val saved = com.droiddeck.launcher.frontend.GameKit.export(
                     source = source!!, destination = folder,
@@ -582,7 +577,6 @@ class FrontEndActivity : ComponentActivity() {
                 getString(R.string.kit_export_done, game.name, com.droiddeck.launcher.frontend.GameKit.formatSize(saved.measured.bytes), saved.archive.path)
             }
         }
-        pickSaveDir.launch(InAppFilePicker.buildDirIntent(this, getString(R.string.kit_export_title, game.name)))
     }
 
     private fun pickGameImportKit() {
@@ -595,7 +589,8 @@ class FrontEndActivity : ComponentActivity() {
         // A full library chooser can be added later; the internal library is always present.
         val library = targets.last { it.second == java.io.File(com.droiddeck.launcher.runtime.LinuxRuntime.rootDir(this), "root/.local/share/Steam") }
             ?: targets.first()
-        LauncherJobs.savePicked = { _, file ->
+        pickSave(LauncherJobs.SavePicker.ZIP, InAppFilePicker.buildIntent(
+            this, extensions = listOf("tar.zst"), title = getString(R.string.kit_import_pick))) { _, file ->
             saveAction(getString(R.string.kit_import)) {
                 val imported = com.droiddeck.launcher.frontend.GameKit.import(
                     archive = file, library = library.second,
@@ -612,8 +607,6 @@ class FrontEndActivity : ComponentActivity() {
                 note
             }
         }
-        pickOpenKit.launch(InAppFilePicker.buildIntent(
-            this, extensions = listOf("tar.zst"), title = getString(R.string.kit_import_pick)))
     }
 
     private fun gameName(kit: com.droiddeck.launcher.frontend.GameKit.Kit): String =
