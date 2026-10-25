@@ -5,6 +5,7 @@ import android.content.Intent
 import android.os.Handler
 import android.os.Looper
 import androidx.compose.ui.geometry.Rect
+import com.droiddeck.launcher.LauncherJobs
 import com.droiddeck.launcher.frontend.AutoComponents
 import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.session.ProtonExtras
@@ -49,6 +50,14 @@ class ProtonMenuAutoTest {
         SessionState.running = false
         SessionState.phase = SessionPhase.IDLE
         SessionState.stopRequested = false
+        // Busy flags live in the process-wide LauncherJobs holder so a recreated screen
+        // keeps seeing running work; reset them here so each test starts idle.
+        LauncherJobs.protonBusyId = null
+        LauncherJobs.pkgId = null
+        LauncherJobs.pkgStage = null
+        LauncherJobs.pkgPercent = -1
+        LauncherJobs.saveBusy = null
+        LauncherJobs.compBusy = null
         LaunchOrigin.take()
         LaunchOrigin.flooding = null
         val latest = JSONObject()

@@ -59,8 +59,9 @@ object FileOps {
             progress?.onProgress(1, 1)
             return true
         }
+        // A finished copy is committed: the source is removed even if cancellation
+        // arrives afterwards. Cancellation aborts an unfinished copy inside copyTree.
         if (!copyWithProgress(src, dst, maxOf(totalBytes, 1L), progress, isCancelled)) return false
-        if (isCancelled()) return false
         return delete(src)
     }
 
