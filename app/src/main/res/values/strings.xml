@@ -1443,6 +1443,9 @@
     <string name="session_ended_desktop">The desktop stopped unexpectedly. Share the logs with a bug report, or try again.</string>
     <string name="session_ended_detail">Exit status %1$d · %2$s</string>
     <string name="session_ended_no_log">no log</string>
+    <string name="session_end_gpu_ceiling">The session ended cleanly, but the platform lowered the GPU ceiling from %1$d to %2$d MHz while the clock was pinned. %3$s</string>
+    <string name="session_end_gpu_advice_gos">Game Booster is in Standard mode, which lets the system cap the GPU; set Game optimisation to Performance for this game.</string>
+    <string name="session_end_gpu_advice_cooling">Game Booster is already in Performance mode, so this was the thermal engine on hot CPU sensors. Cooling and unplugged play raise the ceiling; sustained loads past the platform limit need a system-level thermal override.</string>
     <string name="doctor_fix_and_run">Fix &amp; run</string>
     <string name="doctor_mesh_detail">Detected a UE5 mesh-shader crash with VKD3D feature level 12_2 advertised. This game is now pinned to 12_1.</string>
     <string name="doctor_download_detail">The Steam client failed to download (network error). Nothing was changed.</string>

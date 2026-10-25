@@ -284,6 +284,35 @@ object ThrottleWatch {
         }
     }
 
+    /**
+     * The platform ceiling at its best and at the end, from a `perf.csv` dump —
+     * but only when the GPU pin was held for at least one sample, so an
+     * unpinned session never reports a "drop". Returns null when the file has
+     * no ceiling history or the ceiling never fell. Pure for tests.
+     */
+    internal fun ceilingDrop(csv: String): Pair<Long, Long>? {
+        val lines = csv.lineSequence().filter { it.isNotBlank() && !it.startsWith("#") }.toList()
+        if (lines.size < 2) return null
+        val cols = lines[0].split(",")
+        val top = cols.indexOf("gpu_max_mhz")
+        val pin = cols.indexOf("gpu_pin")
+        if (top < 0 || pin < 0) return null
+        var best = 0L
+        var last = 0L
+        var held = false
+        for (row in lines.subList(1, lines.size)) {
+            val cells = row.split(",")
+            if (cells.size <= maxOf(top, pin)) continue
+            if (cells[pin].trim() == "1") held = true
+            cells[top].trim().toLongOrNull()?.let {
+                if (it > best) best = it
+                last = it
+            }
+        }
+        if (!held || best <= 0 || last <= 0 || best - last <= 5) return null
+        return best to last
+    }
+
     /** A line the moment the platform takes a clock away or gives one back, with the reason. */
     private fun logCapChanges(
         clusters: List<Cluster>,

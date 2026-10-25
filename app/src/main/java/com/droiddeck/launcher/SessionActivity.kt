@@ -2168,10 +2168,38 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             }.getOrNull()
             if (base == null) doctor?.let { EndHint(it.detail, doctor = it) }
             else if (doctor != null) base.copy(doctor = doctor)
-            else base
+            else base ?: ceilingHint()
         } catch (e: Exception) {
             null
         }
+    }
+
+    /**
+     * A clean end whose GPU ceiling fell while the pin was held: the session did
+     * not crash, but the platform took clocks away (thermal engine, GOS). Shown
+     * instead of finishing silently so the `perf.csv` drop has a reason.
+     */
+    private fun ceilingHint(): EndHint? {
+        val csv = runCatching {
+            val dir = SessionState.logDirectory ?: return null
+            val f = java.io.File(dir, "perf.csv")
+            if (!f.isFile || f.length() > 2L * 1024 * 1024) return null
+            f.readText()
+        }.getOrNull() ?: return null
+        val (best, last) = com.droiddeck.launcher.session.ThrottleWatch.ceilingDrop(csv) ?: return null
+        val standard = runCatching {
+            com.droiddeck.launcher.core.DeviceReport.gameMode(this) ==
+                android.app.GameManager.GAME_MODE_STANDARD
+        }.getOrDefault(false)
+        return EndHint(
+            getString(
+                R.string.session_end_gpu_ceiling,
+                best,
+                last,
+                getString(if (standard) R.string.session_end_gpu_advice_gos else R.string.session_end_gpu_advice_cooling),
+            ),
+            evenOnSuccess = true,
+        )
     }
 
 

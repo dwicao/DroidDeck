@@ -59,6 +59,14 @@ zone. On an SM-F946B running NSUNS4 at 1280x720, 0.4.11 held 30 FPS (60 with LSF
 thermal, mostly at 475 MHz with occasional 295 MHz. A cooler mount and a charger with headroom
 remain the reliable ways to keep a higher ceiling.
 
+When a session ends cleanly but `perf.csv` shows the GPU ceiling falling while the pin was held
+(e.g. 719→348 MHz with `thermal=none`), the ended screen now says so directly: the kernel thermal
+engine follows per-cluster CPU sensors, not the averages, so a cool GPU average does not rule it
+out. Past Game Booster and cooling, holding back the platform limit needs system-level privilege
+the launcher does not have; advanced users do it with Shizuku-based tools such as
+[Muimex11](https://github.com/Inkflow-Gab/Muimex11) (thermal override + GOS removal), at their own
+risk.
+
 ## What RE adds
 
 Everything below ships in **1.0.0 (40)** and is independent of upstream releases (see the note at the top). Release notes with APKs live on the [Releases page](https://github.com/dwicao/DroidDeck-RE/releases).

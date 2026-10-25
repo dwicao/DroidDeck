@@ -271,7 +271,7 @@ object DeviceReport {
         else -> "MODE_$mode"
     }
 
-    private fun gameMode(context: Context): Int? =
+    internal fun gameMode(context: Context): Int? =
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) null
         else runCatching { context.getSystemService(android.app.GameManager::class.java)?.gameMode }.getOrNull()
 
