@@ -34,6 +34,9 @@ ported. Game-specific workarounds live in `BUILTIN_GAME_ENV`
 | #1521 (Xbox sign-in diagnostics + loopback) | Port of 5 commits | `d379768f` … (5 commits) |
 | #1509 (share games arm64/x86-64) | Port of 3 commits | `85b16398` … (3 commits) |
 | #1464 (external display, experimental) | Port of 4 commits | `e0352134` … (4 commits) |
+| #1413 (tags in About) | GitHub repo topics set (android, steam, proton, wine, linux-gaming, emulation, vulkan, adreno, game-launcher) | no code change |
+| #1487 (stretch screen) | Already on fork: `stretch16x9` pref + ModeSettingsDialog UI + gamescope `-S stretch` | no code change |
+| #1468 (download resume) | `Downloader` already resumes with strong-ETag validation + checksum checkout and all component callers pass `resume=true`. Length-based resume without a validator deliberately NOT added (unsafe join). | no code change |
 | #1478 (USB SSD not detected, S25) | Already covered by fork StorageRoots (`/proc/mounts` fallback, no-UUID drop); replied on issue asking for filesystem + mounts output | no code change |
 
 ## Deliberately skipped (with reason)
@@ -49,14 +52,12 @@ ported. Game-specific workarounds live in `BUILTIN_GAME_ENV`
 
 ## To do next (universal, not yet implemented)
 
-- #1487 stretch/fill display scaling option (Gamescope scaling mode).
-- #1450 custom CLI args for “Start without Steam”.
-- #1451 file-browser history/Back/game-save shortcuts.
+- #1450 custom CLI args for “Start without Steam” (needs per-game UI: storage + drawer field + wire-in).
+- #1451 file-browser history/Back/game-save shortcuts (FileManager UX work).
 - #1447 Arabic BiDi rendering (scope check first).
-- #1413 tags in the About section (trivial).
 - #960 Steam overlay FPS vs LSFG overlay (investigate: likely counts different stages; answer or small fix).
 - #950 display pinned to 60 Hz despite 165 Hz request + CPU ramp lag (investigate Gamescope/output refresh path).
 - #1507 gamepad halves FPS + settings-independent lag (investigate input polling cost).
 - #1187 Xbox library limited to 11 games (needs Xbox account; untestable locally — help wanted).
-- #1468 download resume: `Downloader` already resumes with strong-ETag validation and checksum checkout; length-fallback without a validator deliberately NOT added (unsafe). Remaining work is diagnosis, not code.
+- #1468 download resume: investigated — `Downloader` already resumes with strong-ETag validation and checksum checkout; length-fallback without a validator deliberately NOT added (unsafe). Remaining work is diagnosis, not code.
 - Deferred #1443 port (see above) and deferred move-safety stack (#1520 follow-up: journal/cancel for moves).
