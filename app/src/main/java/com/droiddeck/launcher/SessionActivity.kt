@@ -725,6 +725,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                     endedDetail = loading.endedDetail,
                     onRetry = { retrySession() },
                     onRepair = if (repairOffered) ({ repairRuntime() }) else null,
+                    onDoctor = doctorOffer?.let { p -> { applyDoctorAndRetry(p) } },
+                    doctorLabel = doctorOffer?.let { getString(R.string.doctor_fix_and_run) },
                     onShareLogs = { shareCurrentSessionLogs() },
                     onClose = { finish() },
                     flood = floodColor?.let { androidx.compose.ui.graphics.Color(it) },
@@ -1522,6 +1524,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
 
     @Volatile private var installingRuntime = false
     private var repairOffered by mutableStateOf(false)
+    private var doctorOffer: com.droiddeck.launcher.session.LaunchDoctor.Prescription? = null
+    private var doctorBusy = false
 
     private fun installThenStart(runtime: Boolean, desktop: Boolean, proton: Boolean = false, resume: Boolean = false) {
         if (SessionState.stopRequested) return
@@ -2037,7 +2041,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             return
         }
         Thread({
-            val hint = runtimeDamageHint() ?: sessionEndHint(SessionState.logFile)
+            val hint = runtimeDamageHint() ?: sessionEndHint(SessionState.logFile, status)
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 showEnded(status, hint)
@@ -2057,9 +2061,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             else -> getString(R.string.session_ended_named, "Steam")
         }
         repairOffered = hint?.repair == true
+        doctorOffer = hint?.doctor
+        val baseDetail = getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log))
         loading.showEnded(
             hint?.text ?: stopped,
-            getString(R.string.session_ended_detail, status, SessionState.logFile?.path ?: getString(R.string.session_ended_no_log)),
+            if (doctorOffer != null) doctorOffer!!.detail + "\n" + baseDetail else baseDetail,
         )
         focusEndedScreen()
     }
@@ -2089,7 +2095,26 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         startActivity(again)
     }
 
-    private class EndHint(val text: String, val evenOnSuccess: Boolean = false, val repair: Boolean = false)
+    private fun applyDoctorAndRetry(prescription: com.droiddeck.launcher.session.LaunchDoctor.Prescription) {
+        if (doctorBusy) return
+        doctorBusy = true
+        Thread({
+            val applied = runCatching { prescription.apply(this) }.getOrDefault(false)
+            com.droiddeck.launcher.session.LaunchDoctor.record(this, prescription, SessionState.gameId, applied)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (applied) {
+                    doctorBusy = false
+                    retrySession()
+                } else {
+                    doctorBusy = false
+                    android.widget.Toast.makeText(this, getString(com.droiddeck.launcher.R.string.doctor_apply_failed), android.widget.Toast.LENGTH_LONG).show()
+                }
+            }
+        }, "launch-doctor").start()
+    }
+
+    private data class EndHint(val text: String, val evenOnSuccess: Boolean = false, val repair: Boolean = false, val doctor: com.droiddeck.launcher.session.LaunchDoctor.Prescription? = null)
 
     private fun runtimeDamageHint(): EndHint? {
         val broken = runCatching { com.droiddeck.launcher.runtime.RuntimeHealth.brokenLibraryLinks(this) }.getOrDefault(emptyList())
@@ -2098,7 +2123,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return EndHint(resources.getQuantityString(R.plurals.session_end_runtime_damaged, broken.size, broken.size, broken.first()), repair = true)
     }
 
-    private fun sessionEndHint(log: File?): EndHint? {
+    private fun sessionEndHint(log: File?, exitStatus: Int): EndHint? {
         if (log == null || !log.isFile) return null
         return try {
             var enosys = 0
@@ -2116,7 +2141,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (line.contains(FEX_MISSING)) fexMissing = true
             }
             val steamSetup = com.droiddeck.launcher.session.SteamClientSetupFailure.find(text.lineSequence())
-            if (steamSetup != null) {
+            val base = if (steamSetup != null) {
                 val message = getString(if (steamSetup.download) R.string.session_end_steam_download else R.string.session_end_steam_setup)
                 EndHint(listOfNotNull(message, steamSetup.curlError).joinToString("\n"))
             } else if (fexMissing) {
@@ -2126,6 +2151,16 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 EndHint(resources.getQuantityString(R.plurals.session_hint_enosys, enosys, enosys,
                     getString(R.string.perf_title), getString(R.string.perf_seccomp), getString(R.string.perf_xalia)))
             } else null
+            val doctor = if (exitStatus == 0) null else runCatching {
+                val gameId = SessionState.gameId?.takeIf { it.isNotEmpty() }
+                com.droiddeck.launcher.session.LaunchDoctor.diagnose(
+                    this,
+                    com.droiddeck.launcher.session.LaunchDoctor.Signals(text, exitStatus, gameId, gameId),
+                )?.also { com.droiddeck.launcher.session.LaunchDoctor.record(this, it, gameId, applied = false) }
+            }.getOrNull()
+            if (base == null) doctor?.let { EndHint(it.detail, doctor = it) }
+            else if (doctor != null) base.copy(doctor = doctor)
+            else base
         } catch (e: Exception) {
             null
         }

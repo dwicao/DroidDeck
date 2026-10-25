@@ -1443,6 +1443,10 @@
     <string name="session_ended_desktop">The desktop stopped unexpectedly. Share the logs with a bug report, or try again.</string>
     <string name="session_ended_detail">Exit status %1$d · %2$s</string>
     <string name="session_ended_no_log">no log</string>
+    <string name="doctor_fix_and_run">Fix &amp; run</string>
+    <string name="doctor_mesh_detail">Detected a UE5 mesh-shader crash with VKD3D feature level 12_2 advertised. This game is now pinned to 12_1.</string>
+    <string name="doctor_download_detail">The Steam client failed to download (network error). Nothing was changed.</string>
+    <string name="doctor_apply_failed">Automatic fix did not apply; try again or share the logs.</string>
     <plurals name="session_hint_enosys">
         <item quantity="one">The log shows %1$d \"Function not implemented\" error: proot\'s seccomp acceleration is failing a helper on this device. Try %2$s → \"%3$s\" (or \"%4$s\") and start again.</item>
         <item quantity="other">The log shows %1$d \"Function not implemented\" errors: proot\'s seccomp acceleration is failing a helper on this device. Try %2$s → \"%3$s\" (or \"%4$s\") and start again.</item>

@@ -1353,6 +1353,10 @@
     <string name="session_ended_desktop">Desktop berhenti secara tak terduga. Bagikan log bersama laporan bug, atau coba lagi.</string>
     <string name="session_ended_detail">Status keluar %1$d · %2$s</string>
     <string name="session_ended_no_log">tidak ada log</string>
+    <string name="doctor_fix_and_run">Perbaiki &amp; jalankan</string>
+    <string name="doctor_mesh_detail">Terdeteksi crash mesh-shader UE5 saat VKD3D feature level 12_2 diiklankan. Game ini sekarang dikunci ke 12_1.</string>
+    <string name="doctor_download_detail">Klien Steam gagal mengunduh (galat jaringan). Tidak ada yang diubah.</string>
+    <string name="doctor_apply_failed">Perbaikan otomatis gagal diterapkan; coba lagi atau bagikan log.</string>
     <plurals name="session_hint_enosys">
         <item quantity="other">Log menunjukkan %1$d error “Function not implemented”: akselerasi seccomp proot gagal pada salah satu helper di perangkat ini. Coba %2$s → “%3$s” (atau “%4$s”) lalu mulai lagi.</item>
     </plurals>

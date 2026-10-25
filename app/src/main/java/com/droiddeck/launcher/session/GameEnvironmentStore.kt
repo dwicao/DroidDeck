@@ -78,6 +78,16 @@ object GameEnvironmentStore {
         return config
     }
 
+    /** Merges arbitrary per-game env entries, leaving the rest of the scope untouched. */
+    @Synchronized
+    fun setGameEnv(context: Context, scope: String, entries: Map<String, String?>): GameEnvironment.Config {
+        val config = read(context)
+        val merged = config.entries(scope) + entries
+        val updated = config.withEntries(scope, merged)
+        save(context, updated)
+        return updated
+    }
+
     @Synchronized
     fun publish(context: Context, config: GameEnvironment.Config = read(context)) {
         val resolved = config.copy(shared = GameEnvironment.defaults(SessionPrefs.fexPreset(context), SessionPrefs.forceSsbs(context)) + config.shared)
