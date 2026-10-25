@@ -1447,6 +1447,7 @@
     <string name="doctor_mesh_detail">Detected a UE5 mesh-shader crash with VKD3D feature level 12_2 advertised. This game is now pinned to 12_1.</string>
     <string name="doctor_download_detail">The Steam client failed to download (network error). Nothing was changed.</string>
     <string name="doctor_setup_detail">The Steam client failed to set up (not a network error). Nothing was changed — retrying re-runs setup.</string>
+    <string name="doctor_dll_detail">The game needs %1$s, provided by the %2$s Windows component. It will be installed and enabled for this game, then the game retried.</string>
     <string name="doctor_apply_failed">Automatic fix did not apply; try again or share the logs.</string>
     <plurals name="session_hint_enosys">
         <item quantity="one">The log shows %1$d \"Function not implemented\" error: proot\'s seccomp acceleration is failing a helper on this device. Try %2$s → \"%3$s\" (or \"%4$s\") and start again.</item>

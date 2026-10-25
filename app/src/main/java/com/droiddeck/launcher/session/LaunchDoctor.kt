@@ -43,6 +43,9 @@ object LaunchDoctor {
             steamDownloadRule(context, signals)?.let { return it }
         if (!suppressed(context, "steam-setup-retry", signals.gameId))
             steamSetupRule(context, signals)?.let { return it }
+        missingDllRule(context, signals)?.let {
+            if (!suppressed(context, it.id, signals.gameId)) return it
+        }
         return null
     }
 
@@ -106,6 +109,83 @@ object LaunchDoctor {
             detail = context.getString(com.droiddeck.launcher.R.string.doctor_setup_detail),
             apply = { true },
         )
+    }
+
+    /**
+     * The game died because a Windows component DLL is missing from the prefix
+     * (`status c0000135`, e.g. DiRT 3's OpenAL32.dll, #1501). The fix installs
+     * the providing component and enables it for this game, so the next launch
+     * applies it into the prefix. Fires only when the fix would change
+     * something: an already installed and enabled component means a different
+     * problem.
+     */
+    internal fun missingDllRule(context: Context, signals: Signals): Prescription? {
+        val dll = matchMissingDll(signals.logTail) ?: return null
+        val component = dllToComponent(dll) ?: return null
+        val scope = signals.scope?.takeIf { it.isNotEmpty() } ?: return null
+        if (!GameEnvironment.validScope(scope)) return null
+        val picked = runCatching { WinComponents.picks(context, scope) }.getOrDefault(emptyList())
+        if (WinComponents.installed(context, component) != null && component in picked) return null
+        return Prescription(
+            id = "missing-dll-$component",
+            detail = context.getString(com.droiddeck.launcher.R.string.doctor_dll_detail, dll, component),
+            apply = { installMissingComponent(context, component, scope) },
+        )
+    }
+
+    internal fun matchMissingDll(logTail: String): String? {
+        val re = Regex("""(?i)import_dll Library (\S+\.dll)\b.*?not found""")
+        var dll: String? = null
+        var fatal = false
+        logTail.lineSequence().forEach { line ->
+            re.find(line)?.let { dll = it.groupValues[1].lowercase() }
+            if ("c0000135" in line.lowercase()) fatal = true
+        }
+        return if (fatal) dll else null
+    }
+
+    internal fun dllToComponent(dll: String): String? {
+        val name = dll.lowercase()
+        if (name == "openal32.dll" || name == "wrap_oal.dll") return "oalinst"
+        if (name.startsWith("xactengine") || name.startsWith("x3daudio") ||
+            name.startsWith("xaudio2") || name.startsWith("xapofx")
+        ) return "xact"
+        if (name.startsWith("d3dx9") || name.startsWith("d3dx10") ||
+            name.startsWith("d3dx11") || name.startsWith("d3dcompiler")
+        ) return "d3dx9"
+        return null
+    }
+
+    private fun installMissingComponent(context: Context, component: String, scope: String): Boolean {
+        return runCatching {
+            if (WinComponents.installed(context, component) == null) {
+                val catalog = (runCatching { WinComponents.fetch(context) }.getOrNull()
+                    ?: runCatching { WinComponents.cached(context) }.getOrNull()) ?: return@runCatching false
+                val all = catalog.associateBy { it.name }
+                val id = runCatching { WinComponents.installable(component, all) }.getOrNull() ?: return@runCatching false
+                val c = all[id] ?: return@runCatching false
+                if (WinComponents.installed(context, id) == null) {
+                    val error = try {
+                        WinComponents.install(context, c, all) {}
+                    } catch (e: Exception) {
+                        e.message ?: "install failed"
+                    }
+                    if (error != null) return@runCatching false
+                }
+                try {
+                    WinComponents.setUser(context, scope, id, true)
+                } catch (e: Exception) {
+                    return@runCatching false
+                }
+            } else {
+                try {
+                    WinComponents.setUser(context, scope, component, true)
+                } catch (e: Exception) {
+                    return@runCatching false
+                }
+            }
+            true
+        }.getOrDefault(false)
     }
 
     private fun effectiveFeatureLevel(context: Context, scope: String): String? {

@@ -1357,6 +1357,7 @@
     <string name="doctor_mesh_detail">Terdeteksi crash mesh-shader UE5 saat VKD3D feature level 12_2 diiklankan. Game ini sekarang dikunci ke 12_1.</string>
     <string name="doctor_download_detail">Klien Steam gagal mengunduh (galat jaringan). Tidak ada yang diubah.</string>
     <string name="doctor_setup_detail">Klien Steam gagal disiapkan (bukan galat jaringan). Tidak ada yang diubah — mencoba lagi akan mengulang setup.</string>
+    <string name="doctor_dll_detail">Game membutuhkan %1$s, yang disediakan komponen Windows %2$s. Komponen akan dipasang dan diaktifkan untuk game ini, lalu game dijalankan ulang.</string>
     <string name="doctor_apply_failed">Perbaikan otomatis gagal diterapkan; coba lagi atau bagikan log.</string>
     <plurals name="session_hint_enosys">
         <item quantity="other">Log menunjukkan %1$d error “Function not implemented”: akselerasi seccomp proot gagal pada salah satu helper di perangkat ini. Coba %2$s → “%3$s” (atau “%4$s”) lalu mulai lagi.</item>

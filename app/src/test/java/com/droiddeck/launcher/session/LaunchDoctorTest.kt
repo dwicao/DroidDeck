@@ -21,6 +21,8 @@ class LaunchDoctorTest {
     @Before fun setUp() {
         File(context.filesDir, "game-environment.json").delete()
         File(context.filesDir, "launch-doctor.log").delete()
+        File(context.filesDir, "wincomponents.json").delete()
+        File(context.filesDir, "linuxfs/opt/droiddeck/wincomponents").deleteRecursively()
     }
 
     private fun signals(tail: String, gameId: String? = "349040") =
@@ -144,5 +146,53 @@ class LaunchDoctorTest {
         assertEquals(0, LaunchDoctor.appliedCount(context, "steam-download-retry", "111"))
         assertEquals(1, LaunchDoctor.appliedCount(context, "steam-download-retry", "222"))
         assertEquals(0, LaunchDoctor.appliedCount(context, "steam-download-retry", null))
+    }
+
+    @Test
+    fun missingOpenAlDllMapsToOalinst() {
+        assertEquals("oalinst", LaunchDoctor.dllToComponent("OpenAL32.dll"))
+        assertEquals("oalinst", LaunchDoctor.dllToComponent("wrap_oal.dll"))
+        assertEquals("xact", LaunchDoctor.dllToComponent("X3DAudio1_7.dll"))
+        assertEquals("xact", LaunchDoctor.dllToComponent("xactengine3_4.dll"))
+        assertEquals("d3dx9", LaunchDoctor.dllToComponent("d3dx9_43.dll"))
+        assertEquals("d3dx9", LaunchDoctor.dllToComponent("D3DCompiler_47.dll"))
+        assertEquals(null, LaunchDoctor.dllToComponent("binkw32.dll"))
+    }
+
+    @Test
+    fun missingDllNeedsBothSignalAndFatalStatus() {
+        val tail = "err:module:import_dll Library OpenAL32.dll (which is needed by dirt3_game.exe) not found\n" +
+            "err:module:loader_init Importing dlls for dirt3_game.exe failed, status c0000135\n"
+        assertEquals("openal32.dll", LaunchDoctor.matchMissingDll(tail))
+        assertEquals(null, LaunchDoctor.matchMissingDll("err:module:import_dll Library OpenAL32.dll not found\n"))
+        assertEquals(null, LaunchDoctor.matchMissingDll("some crash, status c0000135\n"))
+        assertEquals(null, LaunchDoctor.matchMissingDll("clean log\n"))
+    }
+
+    @Test
+    fun missingDllRuleFiresWhenComponentAbsent() {
+        val tail = "err:module:import_dll Library OpenAL32.dll (which is needed by dirt3_game.exe) not found\n" +
+            "err:module:loader_init failed, status c0000135\n"
+        val found = LaunchDoctor.diagnose(context, signals(tail))
+        assertNotNull(found)
+        assertEquals("missing-dll-oalinst", found!!.id)
+    }
+
+    @Test
+    fun missingDllRuleNeedsAScope() {
+        val tail = "err:module:import_dll Library OpenAL32.dll not found\nstatus c0000135\n"
+        assertNull(LaunchDoctor.diagnose(context, signals(tail, gameId = null)))
+    }
+
+    @Test
+    fun missingDllRuleSkippedWhenAlreadyInstalledAndPicked() {
+        val tail = "err:module:import_dll Library OpenAL32.dll not found\nstatus c0000135\n"
+        val compDir = File(context.filesDir, "linuxfs/opt/droiddeck/wincomponents/oalinst").apply { mkdirs() }
+        File(compDir, "component.json").writeText("{\"version\":\"test\"}")
+        // Installed but not picked for this game: the pick half is still missing, so it fires.
+        assertNotNull(LaunchDoctor.diagnose(context, signals(tail)))
+        WinComponents.setUser(context, "349040", "oalinst", true)
+        // Both halves in place: nothing left to fix, no prescription.
+        assertNull(LaunchDoctor.diagnose(context, signals(tail)))
     }
 }
