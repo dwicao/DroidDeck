@@ -2536,6 +2536,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         return EndHint(message)
     }
 
+    private fun sessionEndHint(log: File?): EndHint? = sessionEndHint(log, 0)
+
     private fun sessionEndHint(log: File?, exitStatus: Int): EndHint? {
         if (log == null || !log.isFile) return null
         return try {

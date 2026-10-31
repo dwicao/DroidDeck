@@ -599,18 +599,29 @@ class FrontEndActivity : ComponentActivity() {
     private fun startSessionActivity(intent: Intent, gameLinkRequest: Intent? = null): Boolean {
         val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
         if (compatLaunch != null || flood != null) return false
-        if (SessionLaunchGate.shouldCheckBusyState(intent, SessionState.running) && !sessionLaunchAllowed()) return false
-        if (busy || LinuxRuntimeInstaller.isBusy()) {
-            android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
-            return false
-        }
-        if (SessionState.installing != null && !SessionState.running) {
-            android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
-            return false
-        }
-        if (!compat && pkgStage != null) {
-            android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
-            return false
+        if (compat) {
+            if (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null) {
+                android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
+            if (SessionState.installing != null && !SessionState.running) {
+                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
+        } else {
+            if (SessionLaunchGate.shouldCheckBusyState(intent, SessionState.running) && !sessionLaunchAllowed()) return false
+            if (busy || LinuxRuntimeInstaller.isBusy()) {
+                android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
+            if (SessionState.installing != null && !SessionState.running) {
+                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
+            if (pkgStage != null) {
+                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
         }
         val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
         if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
@@ -677,7 +688,7 @@ class FrontEndActivity : ComponentActivity() {
                 }
                 if (!compatLaunchVisible) { ui.postDelayed(this, 250); return }
                 val problem = protons.protonProblem.takeIf { waiting.menuInstall }
-                if (problem == null && (busy || LinuxRuntimeInstaller.isBusy() || (SessionState.installing != null && !SessionState.running) || pkgStage != null)) {
+                if (problem == null && (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null || (SessionState.installing != null && !SessionState.running) || pkgStage != null)) {
                     waiting.loading.say(pkgStage ?: stage.takeIf { it.isNotBlank() } ?: getString(R.string.main_wait_runtime),
                         com.droiddeck.launcher.session.LoadingState.Topic.RUNTIME, readable = true)
                     waiting.loading.percent = if (pkgStage != null) pkgPercent else percent
@@ -875,7 +886,8 @@ class FrontEndActivity : ComponentActivity() {
                             syncDualPanel()
                             android.widget.Toast.makeText(this, R.string.game_link_invalid, android.widget.Toast.LENGTH_LONG).show()
                         } else {
-                            handleGameLink(steamGames, scanned = false)
+                            if (steamGames.none { it.gameIdString == pendingGameLink }) return@post
+                            handleGameLink(steamGames)
                             refresh()
                         }
                     }
@@ -889,7 +901,7 @@ class FrontEndActivity : ComponentActivity() {
         returnHome: Boolean = false,
         gameLinkRequest: Intent? = null,
     ): Boolean {
-        if (protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
+        if (saveBusy != null || pkgStage != null) {
             android.widget.Toast.makeText(this, R.string.main_wait_install_game, android.widget.Toast.LENGTH_SHORT).show()
             return false
         }
@@ -1084,11 +1096,10 @@ class FrontEndActivity : ComponentActivity() {
         ui.postDelayed(poll, SESSION_SWITCH_POLL_MS)
     }
 
-    private fun handleGameLink(games: List<Library.SteamGame>, scanned: Boolean = true) {
+    private fun handleGameLink(games: List<Library.SteamGame>) {
         if (!lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) return
         val request = intent
         val id = pendingGameLink ?: return
-        if (!scanned && games.none { it.gameIdString == id }) return
         gameLinkTried = true
         ui.postDelayed({
             if (!isDestroyed && lifecycle.currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.RESUMED)) syncDualPanel()

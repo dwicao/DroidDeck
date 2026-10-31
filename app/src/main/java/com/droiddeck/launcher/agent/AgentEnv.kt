@@ -134,15 +134,16 @@ object AgentEnv {
         val state = load(context)
         val active = strings(state.optJSONArray("pending"))
         val overrides = strings(state.optJSONArray("pendingOverrides"))
+        val sessionOverrides = overrides.filter { it != "libblfastpath.so" }
         val pendingBin = bin(context)
         pendingBin.mkdirs()
         pendingBin.listFiles()?.filter { it.name !in overrides }?.forEach { it.delete() }
         val sessionBin = sessionBin(context, sessionId)
         if (sessionBin.exists()) throw AgentException("SESSION_EXISTS", "The agent session directory already exists")
         try {
-            if (overrides.isNotEmpty()) {
+            if (sessionOverrides.isNotEmpty()) {
                 if (!sessionBin.mkdirs()) throw AgentException("OVERRIDE_FAILED", "Could not create the session override directory")
-                for (name in overrides) {
+                for (name in sessionOverrides) {
                     val source = File(pendingBin, name)
                     if (Files.isSymbolicLink(source.toPath()) || !source.isFile)
                         throw AgentException("OVERRIDE_FAILED", "The queued override $name is unavailable")
@@ -167,7 +168,7 @@ object AgentEnv {
             FileUtils.delete(sessionBin)
             throw e
         }
-        overrides.forEach { File(pendingBin, it).delete() }
+        sessionOverrides.forEach { File(pendingBin, it).delete() }
         if (withPath.isNotEmpty()) Log.i(TAG, "agent environment keys for this session: ${withPath.map { it.substringBefore('=') }}")
         withPath
     }
