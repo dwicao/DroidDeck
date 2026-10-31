@@ -2147,7 +2147,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 intent.getStringArrayExtra(SessionService.EXTRA_PROGRAM_ARGS),
                 intent.getStringExtra(SessionService.EXTRA_GAME_ID),
                 sessionActivityDisplayId,
-                intent.getStringExtra(SessionService.EXTRA_GAME_ID),
             )
         }
         applyFrameGen()
