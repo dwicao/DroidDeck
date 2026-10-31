@@ -51,7 +51,7 @@ object CompositorHost {
         outputHeight: Int,
         refreshHz: Float,
         fpsLimit: Int,
-        outputHz: Float,
+        outputHz: Float = 0f,
     ): Boolean {
         ownVsyncThread = SessionPrefs.vsyncThread(context)
         WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))

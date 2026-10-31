@@ -2310,7 +2310,6 @@ class SessionService : Service() {
             steamUi: String? = null, steamUrl: String? = null, programArgs: Array<String>? = null,
             gameId: String? = null,
             displayId: Int = Display.DEFAULT_DISPLAY,
-            gameId: String? = null,
         ) {
             SessionState.activityDisplayId = displayId
             val intent = Intent(context, SessionService::class.java).putExtra(EXTRA_MODE, mode)

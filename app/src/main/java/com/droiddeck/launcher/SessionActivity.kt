@@ -609,9 +609,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         com.droiddeck.launcher.gpu.SteamVrHealth.begin(this, SessionState.sessionId)
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         if (!SessionState.running) {
-            SessionState.fpsChoice = SessionPrefs.fpsLimit(
-                this, SessionPrefs.prefMode(intent.getStringExtra(SessionService.EXTRA_MODE) ?: SessionService.MODE_STEAM),
-            )
+            SessionState.fpsChoice = 0
             SessionState.fpsLimit = SessionState.fpsChoice
             fpsLimit = SessionState.fpsLimit
         }
@@ -1278,18 +1276,6 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             onBackActionsInverted = { inverted ->
                 SessionPrefs.setBackActionsInverted(this@SessionActivity, inverted)
                 backActionsInverted = inverted
-            },
-            lowLatencyController = lowLatencyController,
-            lowLatencyTouch = lowLatencyTouch,
-            onLowLatencyController = { on ->
-                SessionPrefs.setLowLatencyController(this@SessionActivity, on)
-                lowLatencyController = on
-                applyLowLatency()
-            },
-            onLowLatencyTouch = { on ->
-                SessionPrefs.setLowLatencyTouch(this@SessionActivity, on)
-                lowLatencyTouch = on
-                applyLowLatency()
             },
             lowLatency = lowLatency,
             onLowLatency = { on ->
