@@ -1,8 +1,8 @@
 package com.droiddeck.launcher.gpu
 
-import com.droiddeck.launcher.session.QuestExperimental
-import android.os.Environment
 import android.os.Build
+import android.os.Environment
+import com.droiddeck.launcher.session.QuestExperimental
 import com.droiddeck.launcher.session.SessionPrefs
 import java.io.File
 import org.junit.After

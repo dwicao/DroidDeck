@@ -1,7 +1,11 @@
 package com.droiddeck.launcher.wayland
 
+import android.os.Handler
+import android.os.HandlerThread
+import android.os.Process
 import android.view.Choreographer
 import android.view.Surface
+import com.droiddeck.launcher.session.SessionPrefs
 import com.droiddeck.launcher.session.SessionState
 
 object CompositorHost {
@@ -14,8 +18,22 @@ object CompositorHost {
     @Volatile
     private var vsyncRunning = false
 
-    private val vsync = object : Choreographer.FrameCallback {
+    @Volatile
+    private var ownVsyncThread = true
+
+    // The screen tick gets its own thread so a busy main thread cannot delay the compositor's frames.
+    private val vsyncThread: HandlerThread by lazy {
+        HandlerThread("droiddeck-vsync", Process.THREAD_PRIORITY_DISPLAY).apply { start() }
+    }
+    private val vsyncHandler: Handler by lazy { Handler(vsyncThread.looper) }
+
+    @Volatile
+    private var vsyncGeneration = 0
+
+    // Each resume gets a new callback; one left queued from an earlier resume, on either thread, stops itself.
+    private fun vsyncCallback(generation: Int) = object : Choreographer.FrameCallback {
         override fun doFrame(frameTimeNanos: Long) {
+            if (generation != vsyncGeneration) return
             WaylandCompositor.nativeVsync(frameTimeNanos)
             if (vsyncRunning) Choreographer.getInstance().postFrameCallback(this)
         }
@@ -35,6 +53,8 @@ object CompositorHost {
         fpsLimit: Int,
         outputHz: Float,
     ): Boolean {
+        ownVsyncThread = SessionPrefs.vsyncThread(context)
+        WaylandCompositor.nativeSetRenderOnCommit(SessionPrefs.renderOnCommit(context))
         pace(refreshHz, fpsLimit, outputHz)
         if (!SessionState.running) WaylandCompositor.nativeSetOutputSize(outputWidth, outputHeight)
         if (started) {
@@ -55,7 +75,7 @@ object CompositorHost {
 
     private fun pace(refreshHz: Float, fpsLimit: Int, outputHz: Float) {
         WaylandCompositor.nativeSetFpsLimit(fpsLimit)
-        WaylandCompositor.nativeSetLayerFrameRate(outputHz)
+        WaylandCompositor.nativeSetLayerFrameRate(if (outputHz > 0f) outputHz else if (fpsLimit > 0) fpsLimit.toFloat() else refreshHz)
         WaylandCompositor.nativeSetOutputRefreshRate(refreshHz)
         SessionState.refreshHz = refreshHz
     }
@@ -108,8 +128,14 @@ object CompositorHost {
 
     private fun resumeVsync() {
         if (vsyncRunning) return
+        val callback = vsyncCallback(++vsyncGeneration)
         vsyncRunning = true
-        Choreographer.getInstance().postFrameCallback(vsync)
+        WaylandCompositor.nativeLog("screen", if (ownVsyncThread) "screen tick runs on its own display-priority thread" else "screen tick runs on the main thread")
+        if (!ownVsyncThread) {
+            Choreographer.getInstance().postFrameCallback(callback)
+            return
+        }
+        vsyncHandler.post { Choreographer.getInstance().postFrameCallback(callback) }
     }
 
     private fun pauseVsync() {

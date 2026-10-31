@@ -227,12 +227,6 @@ object EpicClient {
         )
     }
 
-    fun withLauncher(games: List<Library.SteamGame>, launcher: Library.SteamGame?): List<Library.SteamGame> {
-        if (launcher == null) return games
-        val at = games.indexOfFirst { it.source == Store.EPIC.id }.takeIf { it >= 0 } ?: games.size
-        return games.subList(0, at) + launcher + games.subList(at, games.size)
-    }
-
     private fun steamSession(): Boolean =
         SessionState.running && !SessionState.stopRequested && SessionState.mode == SessionService.MODE_STEAM
 
@@ -311,6 +305,15 @@ object EpicClient {
             (current.startsWith("/mnt/droiddeck-") || current.startsWith("/root/Storage/"))) {
             Log.w(TAG, "the configured external storage is disconnected; keeping $current")
             return current
+        }
+        if (externalMissing && current.isNotEmpty() &&
+            (current.startsWith("/mnt/droiddeck-") || current.startsWith("/root/Storage/"))) {
+            Log.w(TAG, "the configured external storage is disconnected; keeping $current")
+            return current
+        }
+        if (externalMissing && current.isEmpty()) {
+            Log.w(TAG, "the configured external storage is disconnected; not choosing an install folder")
+            return null
         }
         if (current.isNotEmpty() && current != STOCK_INSTALL_DIR && dirs.values.none { it.second == current } && !(current.endsWith("/${Store.EPIC.shortLabel}") && (current.startsWith("/mnt/droiddeck-") || current.startsWith("/root/Storage/")))) return current
         if (!chosen.first.isDirectory && !chosen.first.mkdirs()) return null

@@ -155,8 +155,7 @@ object ComponentsManager {
         if (staged.exists()) check(staged.delete()) { "Could not remove unpublished component selections" }
     }
 
-    private fun saveState(context: Context, state: JSONObject) {
-        val prepared = prepareLaunchState(context, state)
+    private fun saveState(context: Context, state: JSONObject, prepared: PreparedLaunchState = prepareLaunchState(context, state)) {
         val dir = launchDir(context)
         val tmp = File(dir, "desired.tsv.tmp")
         try {
@@ -173,6 +172,17 @@ object ComponentsManager {
         }
         File(dir, "store").listFiles()?.filter { it.isDirectory && it.name !in prepared.keep }
             ?.forEach { it.deleteRecursively() }
+    }
+
+    fun republish(context: Context): Boolean = synchronized(lock) {
+        recoverState(context)
+        val saved = stateFile(context)
+        if (saved.exists() && runCatching { JSONObject(saved.readText()) }.isFailure) return false
+        val state = loadState(context)
+        val prepared = prepareLaunchState(context, state)
+        if ((FileUtils.readString(File(launchDir(context), "desired.tsv")) ?: "") == prepared.text) return false
+        saveState(context, state, prepared)
+        true
     }
 
     private fun JSONObject.sub(key: String): JSONObject = optJSONObject(key) ?: JSONObject().also { put(key, it) }
@@ -780,6 +790,64 @@ object ComponentsManager {
         true
     }
 
+    private fun checkPackageUnused(context: Context, state: JSONObject, name: String) {
+        val installed = protons(context).distinctBy { it.id }.associateBy { it.id }
+        for (key in listOf("queued", "active")) {
+            val byProton = state.sub(key)
+            for (pid in byProton.keys()) {
+                val comps = byProton.optJSONObject(pid) ?: continue
+                for (comp in comps.keys()) {
+                    val entry = comps.optJSONObject(comp) ?: continue
+                    check(entry.optString("file") != name || !liveSelection(key, entry, installed[pid])) {
+                        context.getString(R.string.cmgr_package_in_use, name, installed[pid]?.name ?: pid)
+                    }
+                }
+            }
+        }
+        val profiles = state.sub("profiles")
+        for (scope in profiles.keys()) {
+            val profile = profiles.optJSONObject(scope) ?: continue
+            check(COMPONENTS.none { profile.optString(it) == name }) { context.getString(R.string.cmgr_package_in_use, name, scope) }
+        }
+    }
+
+    fun carryOver(context: Context, fromDir: String, toDir: String) {
+        synchronized(lock) {
+            val target = protons(context).firstOrNull { it.id == safeName(toDir) } ?: return
+            val state = loadState(context)
+            val wanted = carried(state, safeName(fromDir)) { File(packagesDir(context), it).isFile }
+            val active = state.sub("active").optJSONObject(target.id)
+            val queued = state.sub("queued").sub(target.id)
+            var changed = false
+            wanted.forEach { (comp, entry) ->
+                if (active?.has(comp) != true && !queued.has(comp)) {
+                    queued.put(comp, entry)
+                    changed = true
+                }
+            }
+            if (queued.length() == 0) state.sub("queued").remove(target.id)
+            if (changed) saveState(context, state)
+        }
+    }
+
+    internal fun carried(state: JSONObject, from: String, present: (String) -> Boolean): Map<String, JSONObject> = buildMap {
+        state.optJSONObject("active")?.optJSONObject(from)?.let { active ->
+            active.keys().forEach { comp ->
+                val entry = active.optJSONObject(comp) ?: return@forEach
+                val file = entry.optString("file")
+                if (comp in COMPONENTS && file.endsWith(".wcp") && present(file)) {
+                    put(comp, JSONObject().put("kind", "package").put("file", file).put("label", entry.optString("label")))
+                }
+            }
+        }
+        state.optJSONObject("queued")?.optJSONObject(from)?.let { queued ->
+            queued.keys().forEach { comp ->
+                val entry = queued.optJSONObject(comp) ?: return@forEach
+                if (comp in COMPONENTS && entry.optString("kind") == "package" && present(entry.optString("file"))) put(comp, entry)
+            }
+        }
+    }
+
     fun forgetProton(context: Context, dirName: String) {
         synchronized(lock) {
             val id = safeName(dirName)
@@ -788,21 +856,6 @@ object ComponentsManager {
             val selected = listOf("active", "queued").map { state.sub(it).remove(id) != null }.any { it }
             if (selected && runCatching { saveState(context, state) }.onFailure { Log.w(TAG, "forget $id", it) }.isFailure) return
             File(originalsDir(context), id).deleteRecursively()
-        }
-    }
-
-    private fun checkPackageUnused(context: Context, state: JSONObject, name: String) {
-        for (key in listOf("queued", "active")) {
-            val byProton = state.sub(key)
-            for (pid in byProton.keys()) {
-                val comps = byProton.optJSONObject(pid) ?: continue
-                for (comp in comps.keys()) check(comps.optJSONObject(comp)?.optString("file") != name) { context.getString(R.string.cmgr_package_in_use, name, pid) }
-            }
-        }
-        val profiles = state.sub("profiles")
-        for (scope in profiles.keys()) {
-            val profile = profiles.optJSONObject(scope) ?: continue
-            check(COMPONENTS.none { profile.optString(it) == name }) { context.getString(R.string.cmgr_package_in_use, name, scope) }
         }
     }
 
@@ -836,8 +889,22 @@ object ComponentsManager {
     fun deletePackage(context: Context, file: String): String = synchronized(lock) {
         val name = safeName(file)
         val state = loadState(context)
+        val installed = protons(context).distinctBy { it.id }.associateBy { it.id }
         var changed = false
-        checkPackageUnused(context, state, name)
+        for (key in listOf("queued", "active")) {
+            val byProton = state.sub(key)
+            for (pid in byProton.keys().asSequence().toList()) {
+                val comps = byProton.optJSONObject(pid) ?: continue
+                for (comp in comps.keys().asSequence().toList()) {
+                    val entry = comps.optJSONObject(comp) ?: continue
+                    if (entry.optString("file") != name) continue
+                    check(!liveSelection(key, entry, installed[pid])) { context.getString(R.string.cmgr_package_in_use, name, installed[pid]?.name ?: pid) }
+                    comps.remove(comp)
+                    changed = true
+                }
+                if (comps.length() == 0) byProton.remove(pid)
+            }
+        }
         val f = File(packagesDir(context), name)
         check(f.isFile) { context.getString(R.string.cmgr_package_not_stored, name) }
         val profiles = state.sub("profiles")
@@ -891,6 +958,7 @@ object ComponentsManager {
                     .put("url", a.optString("browser_download_url")).put("size", a.optLong("size")).put("digest", a.optString("digest")))
             }
         }
+        if (items.length() == 0 && cache.isFile) runCatching { return parseCatalog(JSONObject(cache.readText())) }
         val out = JSONObject().put("items", items).put("fetchedAt", System.currentTimeMillis() / 1000)
         val tmp = File(cache.parentFile, cache.name + ".tmp")
         tmp.writeText(out.toString()); tmp.renameTo(cache)

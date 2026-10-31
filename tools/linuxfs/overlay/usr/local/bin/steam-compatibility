@@ -19,9 +19,6 @@ OWN_TOOLS = ((TOOL, SOURCES), (TOOL_11, ("Proton 11.0 (ARM64)",)))
 FEX_TOOL = "droiddeck-fex"
 FEX_LAUNCHER = "droiddeck-fex-tool"
 FEX_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", FEX_LAUNCHER)
-X86_TOOL = "droiddeck-x86"
-X86_LAUNCHER = "droiddeck-x86-tool"
-X86_FILES = ("toolmanifest.vdf", "compatibilitytool.vdf", X86_LAUNCHER)
 FEX_APPID = "3127680"
 SNIPER_APPID = "1628350"
 SLR4_APPID = "4183110"
@@ -72,7 +69,10 @@ bl_store_launch() {
   fi
   [ -x /usr/local/bin/droiddeck-store-launch ] || return 0
   /usr/local/bin/droiddeck-store-launch "$@"
-  [ $? -eq 10 ] && BL_STORE_EXIT=1
+  rc=$?
+  [ $rc -eq 10 ] && BL_STORE_EXIT=1
+  [ $rc -eq 11 ] && exit 0
+  [ $rc -eq 12 ] && exit 1
   return 0
 }
 
@@ -90,6 +90,34 @@ bl_run() {
 }
 """
 
+BL_DESKTOP_GPU_SETUP = """
+bl_desktop_gpu() {
+  local name saved gpu=/usr/local/bin/droiddeck-gpu
+  local names=(LD_PRELOAD LD_LIBRARY_PATH ENABLE_VK_LAYER_VALVE_steam_overlay_1 ENABLE_VK_LAYER_VALVE_steam_fossilize_1)
+  if [ -n "${BL_DESKTOP_GPU_CHILD:-}" ]; then
+    for name in "${names[@]}"; do
+      saved=BL_GPU_SAVED_$name
+      [ -n "${!saved+x}" ] || continue
+      export "$name=${!saved}"
+      unset "$saved"
+    done
+    return 0
+  fi
+  [ "${BL_DESKTOP:-}" = 1 ] && [ "${verb:-}" = waitforexitandrun ] && [ -x "$gpu" ] || return 0
+  local choice=${BL_DESKTOP_GPU:-on}
+  case "${choice,,}" in off | 0 | no | false) return 0 ;; esac
+  case " $* " in *iscriptevaluator*) return 0 ;; esac
+  local clear=()
+  for name in "${names[@]}"; do
+    [ -n "${!name+x}" ] || continue
+    export "BL_GPU_SAVED_$name=${!name}"
+    clear+=(-u "$name")
+  done
+  echo "droiddeck-gpu: the desktop starts this game on the GPU" >&2
+  exec env "${clear[@]}" "$gpu" "$0" "$verb" "$@"
+}
+bl_desktop_gpu "$@"
+"""
 BL_COMPONENTS_SETUP = """
 bl_components() {
   base=$1
@@ -220,69 +248,6 @@ bl_idtech3() {
 }
 """
 
-BL_SWITCHES_SETUP = """
-bl_app_id() {
-  # The app this launch belongs to, from the prefix the client handed over. 0 is the prefix the
-  # tools share, and anything that is not a number is not a game's prefix either.
-  local app=${STEAM_COMPAT_DATA_PATH:-}
-  while [[ "$app" == */ ]]; do app=${app%/}; done
-  app=${app##*/}
-  BL_APP=""
-  if [[ "$app" =~ ^(-?)([0-9]+)$ ]]; then
-    local sign=${BASH_REMATCH[1]} digits=${BASH_REMATCH[2]}
-    while [[ ${#digits} -gt 1 && "$digits" == 0* ]]; do digits=${digits#0}; done
-    if [[ ${#digits} -le 10 ]]; then
-      local value=$((10#$digits))
-      [ "$sign" = "-" ] && value=$((-value))
-      if (( value >= -2147483648 && value <= 4294967295 && value != 0 )); then
-        (( value < 0 )) && value=$((value + 4294967296))
-        BL_APP=$value
-      fi
-    fi
-  fi
-  return 0
-}
-
-bl_game_setting() {
-  BL_SETTING=""
-  [ -n "${BL_APP:-}" ] || return 0
-  BL_SETTING=$("${BL_GAME_SETTING:-/usr/local/bin/droiddeck-game-setting}" "$BL_APP" "$1" 2>/dev/null) || BL_SETTING=""
-}
-
-bl_asked_for() {
-  case "${1:-}" in 1|on|true|yes) return 0 ;; *) return 1 ;; esac
-}
-
-bl_game_switches() {
-  # What the app asked for by game, read here because here is where it has to happen: a prefix that
-  # is to be recreated is gone before anything writes into it, and Proton can be asked to keep a log
-  # of this launch beside the session's other logs. The remaining switches only take options away
-  # from what this launcher would otherwise do.
-  bl_app_id
-  [ "${verb:-}" = waitforexitandrun ] || return 0
-  [ -n "$BL_APP" ] || return 0
-  bl_game_setting DROIDDECK_RESET_PREFIX
-  if bl_asked_for "$BL_SETTING"; then
-    case "${STEAM_COMPAT_DATA_PATH:-}" in
-      */compatdata/*)
-        echo "droiddeck-proton: recreating the prefix for app $BL_APP (asked for in the game's environment)" >&2
-        rm -rf "${STEAM_COMPAT_DATA_PATH}/pfx" 2>/dev/null
-        rm -f "${STEAM_COMPAT_DATA_PATH}/version" 2>/dev/null
-        "${BL_GAME_SETTING:-/usr/local/bin/droiddeck-game-setting}" --unset "$BL_APP" DROIDDECK_RESET_PREFIX 2>/dev/null
-        ;;
-      *) echo "droiddeck-proton: this prefix is not a game's - it is left as it is" >&2 ;;
-    esac
-  fi
-  bl_game_setting DROIDDECK_VERBOSE
-  if bl_asked_for "$BL_SETTING"; then
-    PROTON_LOG=1
-    DXVK_LOG_LEVEL=info
-    export PROTON_LOG DXVK_LOG_LEVEL
-    echo "droiddeck-proton: Proton logs this launch to ${HOME:-/root}/steam-$BL_APP.log (asked for in the game's environment)" >&2
-  fi
-}
-"""
-
 # Source games report VAC-secure or insecure only in their console, written to console.log only with -condebug.
 # The app keeps the switch and the records in /root: the x86-64 client runs games with its own HOME.
 BL_VACDIAG_SETUP = """
@@ -311,6 +276,18 @@ bl_vacdiag() {
 }
 """
 
+# Steam's shader pre-caching runs its D3D driver query through every Proton tool at each start, as
+# "run <client>/bin/d3ddriverquery64.exe" in compatdata/0. Here it has never succeeded (exit 1 every time), and each
+# run started Wine in compatdata/0, where the two Protons upgrade the prefix back and forth for many seconds while the
+# game starts. Steam gets the same failure without starting Wine; other verbs and prefixes are left alone.
+BL_DRIVER_QUERY_SKIP = """
+case "$verb:${1##*/}:${STEAM_COMPAT_DATA_PATH%/}" in
+  run:d3ddriverquery64.exe:*/compatdata/0 | run:d3ddriverquery.exe:*/compatdata/0)
+    echo "droiddeck-proton: Steam's D3D driver query is not run (it fails here and would start Wine in compatdata/0)" >&2
+    exit 1 ;;
+esac
+"""
+
 BL_DIRECTAUDIO_SETUP = """
 bl_is_steam_installscript_target() {
   local target=${1:-}
@@ -325,14 +302,6 @@ bl_directaudio() {
     *) return 0 ;;
   esac
   base=$1
-  bl_game_setting DROIDDECK_AUDIO
-  case "$BL_SETTING" in
-    off|0|no|none)
-      echo "droiddeck-proton: DirectAudio off (asked for in the game's environment)" >&2
-      bl_directaudio_off
-      return 0
-      ;;
-  esac
   [ -n "${BL_DIRECTAUDIO:-}" ] || return 0
   [ -d "$BL_DIRECTAUDIO" ] || return 0
   if bl_is_steam_installscript_target "${2:-}"; then
@@ -366,6 +335,11 @@ bl_directaudio() {
   fi
   WINEDLLPATH="$da/lib/wine${WINEDLLPATH:+:$WINEDLLPATH}"
   export WINEDLLPATH
+  for name in $(compgen -e); do
+    case $name in
+      AUDIO_DIRECT_*) export "BANNER_$name=${!name}" ;;
+    esac
+  done
   WINE_AUDIO_DRIVER="directaudio,pulse"
   export WINE_AUDIO_DRIVER
   pfx="${STEAM_COMPAT_DATA_PATH:-}/pfx"
@@ -393,25 +367,6 @@ bl_directaudio() {
     echo "droiddeck-proton: no prefix yet - DirectAudio takes effect the next time this game starts" >&2
   fi
   echo "droiddeck-proton: DirectAudio ready (Wine $major, $set)" >&2
-}
-
-bl_directaudio_off() {
-  # DirectAudio also pins itself in the prefix's own registry, so switching it off has to take that
-  # back out: otherwise Wine keeps loading the driver from the prefix whatever this launch exports.
-  local pfx="${STEAM_COMPAT_DATA_PATH:-}/pfx" srv=
-  local reg="$pfx/user.reg"
-  [ -f "$reg" ] || return 0
-  grep -aq '"Audio"="directaudio' "$reg" 2>/dev/null || return 0
-  BL_SECTION='[Software\\\\Wine\\\\Drivers]' BL_VALUE='"Audio"' awk '
-    index($0, "[") == 1 { inside = index($0, ENVIRON["BL_SECTION"] " ") == 1 }
-    inside && index($0, ENVIRON["BL_VALUE"] "=") == 1 { next }
-    { print }
-  ' "$reg" > "$reg.bl-new" && mv -f "$reg.bl-new" "$reg"
-  rm -f "$reg.bl-new"
-  echo "droiddeck-proton: DirectAudio taken back out of this prefix's audio driver list" >&2
-  srv="${BL_WINE_SERVER_BASE:-/tmp/.wine-$(id -u)}/server-$(printf '%x-%x' $(stat -c '%d %i' "$pfx" 2>/dev/null || echo 0 0))/socket"
-  [ -S "$srv" ] && echo "droiddeck-proton: a wineserver is already running for this prefix; the change may only reach Wine on the next launch" >&2
-  return 0
 }
 """
 
@@ -451,7 +406,6 @@ for name in %s; do
  [ -n "$depot" ] && break
 done
 if [ -n "$depot" ]; then
-  bl_game_switches
   bl_components "$depot"
   bl_directaudio "$depot" "$@"
   bl_game_cpus
@@ -471,7 +425,7 @@ LAUNCHER_TEMPLATE = LAUNCHER_SH
 
 def launcher_sh(sources=SOURCES):
     return (LAUNCHER_TEMPLATE % " ".join('"%s"' % n for n in sources)).replace(
-        "verb=$1; shift", "verb=$1; shift\n" + BL_SWITCHES_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
+        "verb=$1; shift", "verb=$1; shift\n" + BL_DRIVER_QUERY_SKIP + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
         + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
 
 
@@ -507,7 +461,6 @@ if [ -n "${PROOT_FP_KEY:-}" ] && [ -f "$audit" ]; then
     *) LD_AUDIT="$audit${LD_AUDIT:+:$LD_AUDIT}"; export LD_AUDIT ;;
   esac
 fi
-bl_game_switches
 bl_components "$here"
 bl_directaudio "$here" "$@"
 bl_game_cpus
@@ -519,6 +472,15 @@ bl_store_launch "$@"
 BL_STORE_ARGS=("$@")
 bl_run ${BL_TASKSET:-} /usr/local/bin/droiddeck-game-env "$BL_STORE_PROTON" "$verb" "$@" "${BL_EXTRA_ARGS[@]}"
 """
+
+
+def extra_wrapper_sh(entry_point):
+    return (EXTRA_WRAPPER_SH % entry_point).replace(
+        'here=$(dirname "$0")',
+        'here=$(dirname "$0")\n' + BL_DRIVER_QUERY_SKIP + BL_DESKTOP_GPU_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP
+        + BL_IDTECH3_SETUP + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
+
+
 EXTRA_COMPAT_TOOL_VDF = """"compatibilitytools"
 {
 	"compat_tools"
@@ -561,26 +523,12 @@ verb=$1; shift
 case $verb in
   getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
 esac
-""" + BL_GAME_CPUS_SETUP + """
+""" + BL_DESKTOP_GPU_SETUP + BL_GAME_CPUS_SETUP + """
 bl_game_cpus
 if [ -x /usr/local/bin/droiddeck-steamvr-flat ] && /usr/local/bin/droiddeck-steamvr-flat "$verb"; then
   exec /usr/local/bin/droiddeck-steamvr-game ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
 fi
 exec ${BL_TASKSET:-} /usr/local/bin/droiddeck-fex steam "$verb" "$@"
-"""
-X86_MANIFEST_VDF = """"manifest"
-{
-	"version" "2"
-	"commandline" "/%s %%verb%%"
-	"use_tool_subprocess_reaper" "1"
-}
-""" % X86_LAUNCHER
-X86_LAUNCHER_SH = """#!/bin/bash
-verb=$1; shift
-case $verb in
-  getcompatpath | getnativepath) printf '%s\\n' "$1"; exit 0 ;;
-esac
-exec /usr/local/bin/droiddeck-fex compat "$verb" "$@"
 """
 
 
@@ -728,7 +676,7 @@ def adopt_extras(tools):
     except OSError:
         return adopted
     for entry in entries:
-        if entry in dict(OWN_TOOLS) or entry in (FEX_TOOL, X86_TOOL) or entry.startswith("."):
+        if entry in dict(OWN_TOOLS) or entry == FEX_TOOL or entry.startswith("."):
             continue
         tool_dir = os.path.join(tools, entry)
         manifest = os.path.join(tool_dir, "toolmanifest.vdf")
@@ -756,11 +704,7 @@ def adopt_extras(tools):
         name = first_key(compat_vdf, ["compatibilitytools", "compat_tools"]) or entry
         wrapper = os.path.join(tool_dir, EXTRA_WRAPPER)
         try:
-            body = (EXTRA_WRAPPER_SH % entry_point).replace(
-                    'here=$(dirname "$0")',
-                    'here=$(dirname "$0")\n' + BL_SWITCHES_SETUP + BL_DIRECTAUDIO_SETUP + BL_GAME_CPUS_SETUP + BL_IDTECH3_SETUP
-                    + BL_VACDIAG_SETUP + BL_COMPONENTS_SETUP + BL_LIBPATH_SETUP + BL_STORE_SETUP, 1)
-            write_changed(wrapper, body, 0o755)
+            write_changed(wrapper, extra_wrapper_sh(entry_point), 0o755)
             write_changed(manifest, EXTRA_MANIFEST_VDF)
             write_changed(compat_vdf, EXTRA_COMPAT_TOOL_VDF % (name, display_name(entry)))
             legacy_wrapper = os.path.join(tool_dir, LEGACY_EXTRA_WRAPPER)
@@ -975,18 +919,10 @@ def valve_picks(steam_root):
     return sorted(picks, key=int)
 
 
-def x86_tool():
-    """The tool x86 Linux titles run through. The client's own ARM handling runs Valve's
-    fex-compat-tool with the session's GLIBC_TUNABLES, which an x86 loader cannot survive; ours
-    strips that. Settings > FEX switches to DroidDeck's own FEX install instead."""
-    return FEX_TOOL if (os.environ.get("BL_FEX_TOOL") or "").strip().lower() == "droiddeck" else X86_TOOL
-
-
 def native_targets(steam_root, apps):
     wanted = {str(app) for app in apps if str(app) not in NOT_GAMES}
     if not wanted:
         return {}
-    tool = x86_tool()
     targets = {}
     for app, (oslist, osarch, kind) in appinfo_platforms(os.path.join(steam_root, "appcache", "appinfo.vdf"), wanted).items():
         if kind not in PLAYABLE_TYPES or "linux" not in oslist:
@@ -997,7 +933,7 @@ def native_targets(steam_root, apps):
         if "windows" in oslist:
             targets[app] = NATIVE_CHOICE
             continue
-        targets[app] = tool
+        targets[app] = FEX_TOOL
     return targets
 
 
@@ -1336,6 +1272,32 @@ def requested_games(requests, catalog, runnable=None):
     return resolved
 
 
+OWN_PROTON = "DroidDeck-Proton"
+ARCH_WORDS = re.compile(r"(?i)aarch64|arm64|x86_64|x86-64|amd64")
+
+
+def own_builds(tools):
+    return [t for t in tools if isinstance(t, dict) and not t.get("valve") and
+            isinstance(t.get("dir"), str) and t["dir"].startswith(OWN_PROTON) and t.get("name")]
+
+
+def build_key(name):
+    return [int(n) for n in re.findall(r"\d+", ARCH_WORDS.sub(" ", name))]
+
+
+def own_proton_moves(state, catalog):
+    names = {t["name"] for t in catalog}
+    before = state.get("tools") if isinstance(state.get("tools"), list) else ()
+    seen = state.get("own_builds") if isinstance(state.get("own_builds"), list) else []
+    known = {n for n in seen if isinstance(n, str)} | {t["name"] for t in own_builds(before)} | {t["name"] for t in own_builds(catalog)}
+    state["own_builds"] = sorted(known)
+    builds = own_builds(catalog)
+    if not builds:
+        return None, set()
+    newest = max(builds, key=lambda t: (build_key(t["dir"]), t["dir"]))["name"]
+    return newest, known - names
+
+
 def now_ms():
     import time
     return int(time.time() * 1000)
@@ -1496,30 +1458,34 @@ def register_default(config_path, apps=(), protect=(), default=None, catalog=Non
             catalog = tool_catalog(os.path.dirname(os.path.dirname(os.path.abspath(config_path))),
                                    dict(protect) if isinstance(protect, dict) else {name: name for name in protect})
         names = [t["name"] for t in catalog]
+        newest, gone = own_proton_moves(state, catalog)
+        previous, applied, chosen = state.get("default"), state.get("applied"), state.get("seq")
         if default is None:
             if settle:
                 default, state = choose_default(current.get("0", ""), state, read_json(state_path("request.json", directory)), catalog)
             else:
                 default = state.get("default") if state.get("default") in names else TOOL
+            if settle and newest and default == TOOL and state.get("applied") == applied and state.get("seq") == chosen and (
+                    previous in gone or not state.get("own_proton")):
+                default = newest
+                state.update(default=newest, seq=now_ms(), source="update")
+            if settle and newest:
+                state["own_proton"] = True
+        if newest:
+            for app, name in list(current.items()):
+                if app != "0" and name in gone:
+                    set_mapping(tokens, mapping, app, newest)
+                    current[app] = newest
+            if isinstance(state.get("auto"), dict):
+                state["auto"] = {app: newest if name in gone else name for app, name in state["auto"].items()}
         steam_root = os.path.dirname(os.path.dirname(os.path.abspath(config_path)))
         requests = settled_game_requests(state, current, catalog, not steam_running(), directory)
         overrides = requested_games(requests or {}, catalog)
         managed = state.get("auto", {}).keys() if isinstance(state.get("auto"), dict) else ()
-        native_choices = set(state.get("native_choices", ()))
+        native_choices = state.get("native_choices", ())
         native = native_targets(steam_root, set(apps) | set(picks) | set(managed) | set(native_choices))
         if linux_tool != FEX_TOOL:
-            native = {app: linux_tool if tool in (FEX_TOOL, X86_TOOL) else tool for app, tool in native.items()}
-        translated = {app for app, tool in native.items() if tool not in (None, NATIVE_CHOICE)}
-        for app in translated:
-            if current.get(app) in ("", "native"):
-                # "native" and an empty name are the client's own "run it on the ARM host" guesses
-                # for an x86 Linux build, not a tool anyone picked in the compatibility list; that
-                # guess is what has to be replaced for the game to get past the runtime's loader.
-                # The block is dropped rather than renamed: the client keeps its guesses at priority
-                # 85 and skips them only for a mapping of its own, which is written at 250.
-                set_mapping(tokens, mapping, app, None)
-                del current[app]
-                native_choices.discard(app)
+            native = {app: linux_tool if tool == FEX_TOOL else tool for app, tool in native.items()}
         for app in picked_apps(state) & set(native):
             current.setdefault(app, "")
         changes, auto = plan_mapping(
@@ -1583,19 +1549,6 @@ def build_fex_tool(tool_dir):
     write_changed(os.path.join(tool_dir, "toolmanifest.vdf"), FEX_MANIFEST_VDF)
     write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), FEX_COMPAT_TOOL_VDF % (FEX_TOOL, display_name("Linux x86 (FEX)")))
     write_changed(os.path.join(tool_dir, FEX_LAUNCHER), FEX_LAUNCHER_SH, 0o755)
-
-
-def build_x86_tool(tool_dir):
-    """Valve's own fex-compat-tool behind a launcher of ours, which is what makes the client's
-    x86-on-ARM handling survive the session environment (see droiddeck-fex compat)."""
-    if os.path.islink(tool_dir):
-        os.unlink(tool_dir)
-    elif os.path.isdir(tool_dir) and set(os.listdir(tool_dir)) - set(X86_FILES):
-        shutil.rmtree(tool_dir)
-    os.makedirs(tool_dir, exist_ok=True)
-    write_changed(os.path.join(tool_dir, "toolmanifest.vdf"), X86_MANIFEST_VDF)
-    write_changed(os.path.join(tool_dir, "compatibilitytool.vdf"), FEX_COMPAT_TOOL_VDF % (X86_TOOL, display_name("Linux x86 (Valve FEX)")))
-    write_changed(os.path.join(tool_dir, X86_LAUNCHER), X86_LAUNCHER_SH, 0o755)
 
 
 def remove_tool(tool_dir):
@@ -1686,8 +1639,6 @@ def main():
             "no ARM64 Proton depot yet; the session asks the client to fetch it"))
     build_fex_tool(os.path.join(tools, FEX_TOOL))
     print("steam-compatibility: registered %s" % FEX_TOOL)
-    build_x86_tool(os.path.join(tools, X86_TOOL))
-    print("steam-compatibility: registered %s (x86 Linux titles run through %s)" % (X86_TOOL, x86_tool()))
     extras = adopt_extras(tools)
     for name, directory in sorted(extras.items()):
         print("steam-compatibility: adopted %s as %s" % (directory, name))
@@ -1702,8 +1653,7 @@ def main():
     elif os.path.isfile(config):
         apps = installed_apps(steam_root)
         picks = valve_picks(steam_root)
-        default = register_default(config, apps, protect=extras, catalog=catalog, settle=not steam_running(), picks=picks,
-                                   linux_tool=x86_tool())
+        default = register_default(config, apps, protect=extras, catalog=catalog, settle=not steam_running(), picks=picks)
         print("steam-compatibility: default, %d installed title(s) and %d title(s) with a Valve pick set to %s" % (len(apps), len(picks), default))
     sync = os.path.join(os.path.dirname(os.path.realpath(__file__)), "droiddeck-esync")
     if os.path.isfile(sync):
@@ -1713,17 +1663,6 @@ def main():
             summary = "droiddeck-esync: reconcile failed (%s)" % e
         if summary:
             print("steam-compatibility: %s" % summary)
-    # Asked here rather than only from droiddeck-fex, which does not run at all unless its own
-    # marker already exists: an x86-64 game started without these opens for a second and exits
-    # with "Invalid or Unsupported elf file", which nothing on screen mentions. Guarded exactly
-    # as the original caller guards it - request_fex runs the client's binary to forward the URL,
-    # which at session start would launch a second client that the real launch then refuses.
-    if steam_running():
-        try:
-            for app in request_fex(steam_root, set()):
-                print("steam-compatibility: asked the client to install %s (x86 games need it)" % app)
-        except Exception as e:
-            print("steam-compatibility: could not ask for the x86 runtime (%s)" % e)
 
 
 if __name__ == "__main__":

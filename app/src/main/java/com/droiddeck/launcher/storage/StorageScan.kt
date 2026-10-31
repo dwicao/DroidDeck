@@ -24,6 +24,7 @@ class GameUsage(
     val x64: Boolean = false,
     val libraryRoot: File? = null, val dataRoot: File? = null,
     val gameDir: File? = null, val manifest: File? = null,
+    val prefixDir: File? = null,
 ) {
     val data: Long get() = prefix + shaders + workshop
     val total: Long get() = game + data
@@ -192,7 +193,9 @@ object StorageScan {
                 if (!m.installed) continue
                 val gameDir = dir?.let { File(lib.root, "steamapps/common/$it") }?.takeIf { it.isDirectory }
                 val gameBytes = gameDir?.let { walker.measure(it) } ?: 0
-                val prefix = File(lib.data, "steamapps/compatdata/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
+                val compatRoot = File(lib.data, "steamapps/compatdata").takeIf { it.isDirectory } ?: File(lib.root, "steamapps/compatdata")
+                val prefixDir = File(compatRoot, m.appId.toString()).takeIf { it.isDirectory }
+                val prefix = prefixDir?.let { walker.measure(it) } ?: 0
                 val shaderDir = File(lib.data, "steamapps/shadercache/${m.appId}").takeIf { it.isDirectory }
                 val shaders = shaderDir?.let { walker.measure(it) } ?: 0
                 val workshop = File(lib.root, "steamapps/workshop/content/${m.appId}").takeIf { it.isDirectory }?.let { walker.measure(it) } ?: 0
@@ -200,7 +203,7 @@ object StorageScan {
                 games.add(GameUsage(
                     m.appId, known?.name ?: m.name, known?.art, lib.label, lib.internal, m.lastPlayed,
                     gameBytes, prefix, shaders, workshop, shaderDir, lib.x64,
-                    lib.root, lib.data, gameDir, m.file,
+                    lib.root, lib.data, gameDir, m.file, prefixDir,
                 ))
             }
         }

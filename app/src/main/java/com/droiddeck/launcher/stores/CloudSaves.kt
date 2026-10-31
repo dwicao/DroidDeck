@@ -61,27 +61,39 @@ object CloudSaves {
 
     fun template(context: Context, store: Store, id: String, folder: File, sidecar: StoreGameSidecar): String? {
         val p = prefs(context, store)
+        var retryNone = false
         if (p.contains("cloud_template_$id")) {
             val cached = p.getString("cloud_template_$id", "") ?: ""
             if (cached == TEMPLATE_NONE) {
                 if (noneTemplateIsCurrent(p.getLong("cloud_template_at_$id", 0L), System.currentTimeMillis())) return ""
+                retryNone = true
             } else if (cached.isNotEmpty()) return cached
         }
+        var gogLocation = ""
         val fetched = when (store) {
-            Store.GOG -> gogTemplate(context, id, folder)
+            Store.GOG -> {
+                val config = gogConfig(context, id, folder)
+                if (config == null) {
+                    if (retryNone) { rememberNoCloud(p, id); return "" }
+                    return null
+                }
+                gogLocation = config.name
+                config.location
+            }
             Store.EPIC -> {
                 val token = EpicCredentialStore.getValidAccessToken(context) ?: return null
                 val ns = sidecar.extra["namespace"].orEmpty()
                 val item = sidecar.extra["catalogItemId"].orEmpty()
                 if (ns.isEmpty() || item.isEmpty()) "" else EpicApiClient.getCustomAttribute(token, ns, item, "CloudSaveFolder")
             }
-            Store.AMAZON, Store.ITCH, Store.XBOX -> ""
+            Store.AMAZON, Store.ITCH, Store.XBOX, Store.BATTLENET -> ""
         } ?: return null
         p.edit()
             .putString("cloud_template_$id", fetched.ifEmpty { TEMPLATE_NONE })
             .apply {
                 if (fetched.isEmpty()) putLong("cloud_template_at_$id", System.currentTimeMillis())
                 else remove("cloud_template_at_$id")
+                if (store == Store.GOG && gogLocation.isNotEmpty()) putString("cloud_location_$id", gogLocation)
             }
             .apply()
         Log.i(TAG, "cloud ${store.id} $id template ${if (fetched.isEmpty()) "none" else "found"}")
@@ -103,38 +115,19 @@ object CloudSaves {
             if (c.responseCode !in 200..299) { c.disconnect(); return null }
             val cloud = JSONObject(c.inputStream.bufferedReader().readText()).optJSONObject("content")?.optJSONObject("Windows")?.optJSONObject("cloudStorage")
             c.disconnect()
-            if (cloud?.optBoolean("enabled", false) != true) return GogConfig("", "")
-            val locations = cloud.optJSONArray("locations") ?: return GogConfig("", "")
-            val all = (0 until locations.length()).mapNotNull { locations.optJSONObject(it) }
-            val chosen = all.firstOrNull { it.optString("name").equals("saves", true) } ?: all.firstOrNull()
-            val location = chosen?.optString("location").orEmpty()
-            val name = chosen?.optString("name").orEmpty()
-            if (location.isNotEmpty()) return GogConfig(name, location)
-            // Galaxy SDK IStorage lives under __default, not "no cloud" (#970).
-            if (clientId.isNotEmpty()) return GogConfig(
-                CloudSavePaths.GOG_DEFAULT_NAMESPACE,
-                CloudSavePaths.gogGalaxySdkTemplate(clientId),
+            val locations = cloud?.optJSONArray("locations")
+            val picked = CloudSavePaths.gogSaveFromRemote(
+                enabled = cloud?.optBoolean("enabled", false) == true,
+                locations = (0 until (locations?.length() ?: 0)).mapNotNull { i ->
+                    locations!!.optJSONObject(i)?.let { it.optString("name") to it.optString("location") }
+                },
+                clientId = clientId,
             )
-            GogConfig("", "")
+            if (picked == null) GogConfig("", "") else GogConfig(picked.name, picked.template)
         } catch (e: Exception) {
             Log.w(TAG, "gog remote-config: ${e.javaClass.simpleName}")
             null
         }
-    }
-
-    private fun gogTemplate(context: Context, id: String, folder: File): String? {
-        val p = GogPrefs.get(context)
-        val cached = p.getString("cloud_template_$id", null)
-        if (cached != null && cached != TEMPLATE_NONE && cached.isNotEmpty()) return cached
-        if (cached == TEMPLATE_NONE && noneTemplateIsCurrent(p.getLong("cloud_template_at_$id", 0L), System.currentTimeMillis())) return ""
-        val config = gogConfig(context, id, folder) ?: return null
-        p.edit().putString("cloud_template_$id", config.location.ifEmpty { TEMPLATE_NONE }).apply {
-            if (config.location.isEmpty()) putLong("cloud_template_at_$id", System.currentTimeMillis())
-            else remove("cloud_template_at_$id")
-            if (config.name.isNotEmpty()) putString("cloud_location_$id", config.name)
-            else remove("cloud_location_$id")
-        }.apply()
-        return config.location
     }
 
     /**
@@ -144,7 +137,7 @@ object CloudSaves {
     private fun gogLocationName(context: Context, id: String, folder: File): String? {
         val p = GogPrefs.get(context)
         p.getString("cloud_location_$id", null)?.ifEmpty { null }?.let { return it }
-        if (p.getString("cloud_template_$id", null) in listOf(null, "", TEMPLATE_NONE)) return null
+        if (p.getString("cloud_template_$id", null)?.let { it.isEmpty() || it == TEMPLATE_NONE } == true) return null
         val config = gogConfig(context, id, folder) ?: return null
         if (config.name.isNotEmpty()) p.edit().putString("cloud_location_$id", config.name).apply()
         return config.name.ifEmpty { null }
@@ -158,7 +151,7 @@ object CloudSaves {
         val dir = when (store) {
             Store.GOG -> CloudSavePaths.gog(template, pfx, folder)
             Store.EPIC -> CloudSavePaths.epic(template, pfx, folder, EpicCredentialStore.load(context)?.accountId.orEmpty(), id)
-            Store.AMAZON, Store.ITCH, Store.XBOX -> null
+            Store.AMAZON, Store.ITCH, Store.XBOX, Store.BATTLENET -> null
         }
         return dir to (if (dir == null) "unresolved" else "ok")
     }
@@ -183,7 +176,7 @@ object CloudSaves {
             val account = EpicCredentialStore.load(context)?.accountId.orEmpty()
             if (token == null || account.isEmpty()) null else EpicCloud(account, id, token)
         }
-        Store.AMAZON, Store.ITCH, Store.XBOX -> null
+        Store.AMAZON, Store.ITCH, Store.XBOX, Store.BATTLENET -> null
     }
 
     private fun gogScopedToken(context: Context, id: String, clientId: String): String? {

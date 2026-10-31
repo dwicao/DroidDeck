@@ -23,6 +23,9 @@ class AgentStartActivity : Activity() {
         Thread({
             try {
                 AgentBridgeProvider.awaitRecovery()
+                val until = android.os.SystemClock.elapsedRealtime() + RUNTIME_WAIT_MS
+                while (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy() && !isFinishing &&
+                    android.os.SystemClock.elapsedRealtime() < until) Thread.sleep(RUNTIME_POLL_MS)
                 runOnUiThread {
                     if (!isFinishing) startSession(request)
                 }
@@ -53,6 +56,11 @@ class AgentStartActivity : Activity() {
     private fun startSession(request: JSONObject) {
         if (com.droiddeck.launcher.storage.SteamGameMove.running || com.droiddeck.launcher.storage.AddedGameMove.running) {
             android.widget.Toast.makeText(this, com.droiddeck.launcher.R.string.storage_move_wait, android.widget.Toast.LENGTH_SHORT).show()
+            finish()
+            return
+        }
+        if (com.droiddeck.launcher.runtime.LinuxRuntimeInstaller.isBusy()) {
+            Log.w(TAG, "the Linux runtime is being installed or changed")
             finish()
             return
         }
@@ -112,5 +120,7 @@ class AgentStartActivity : Activity() {
     companion object {
         const val EXTRA_REQUEST = "request"
         private const val TAG = "AgentStartActivity"
+        private const val RUNTIME_WAIT_MS = 15 * 60_000L
+        private const val RUNTIME_POLL_MS = 500L
     }
 }

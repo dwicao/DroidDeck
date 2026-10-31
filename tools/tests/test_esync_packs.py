@@ -1097,6 +1097,41 @@ class LauncherTest(SyncTestCase):
         self.assertNotIn("BL_SYNC_PACK", stock)
         self.assertIn("could not start (", said.getvalue())
 
+    def test_failed_dist_exec_keeps_the_sync_choice(self):
+        tool = make_tool(self.tools, "Proton Experimental (ARM64)")
+        pack = make_pack(self.store(), tool, "valve-experimental-r1")
+        dist = self.dist_of(pack["id"], tool)
+        game_env = runpy.run_path(str(BIN / "droiddeck-game-env"))
+        command = [str(tool / "proton"), "waitforexitandrun", "game.exe"]
+        env = self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="1", WINEESYNC="1")
+        calls = []
+
+        def start(launch, launch_env):
+            calls.append((launch[0], list(launch), dict(launch_env)))
+            if len(calls) == 1:
+                raise PermissionError("denied")
+            return subprocess.Popen([sys.executable, "-c", "pass"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+        g = game_env["start"].__globals__
+        old = g["start"]
+        g["start"] = start
+        try:
+            with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(sys, "argv", ["droiddeck-game-env"] + command), \
+                    contextlib.redirect_stderr(io.StringIO()) as said:
+                self.assertEqual(game_env["main"](), 0)
+        finally:
+            g["start"] = old
+        self.assertEqual([call[:2] for call in calls], [(str(dist / "proton"), [str(dist / "proton")] + command[1:]),
+                                                        (str(tool / "proton"), command)])
+        self.assertEqual((calls[0][2]["WINEESYNC"], calls[0][2]["PROTON_NO_ESYNC"], calls[0][2]["BL_SYNC_PACK"]), ("0", "1", pack["id"]))
+        stock = calls[1][2]
+        for name, value in self.env(STEAM_COMPAT_APP_ID="2630", PROTON_NO_NTSYNC="1", BL_SYNC="0", WINEESYNC="1",
+                                   vblank_mode="0", GAMESCOPE_WSI_MIN_IMAGE_COUNT="8",
+                                   GAMESCOPE_WSI_ENSURE_MIN_IMAGE_COUNT="1").items():
+            self.assertEqual(stock.get(name), value)
+        self.assertNotIn("BL_SYNC_PACK", stock)
+        self.assertIn("could not start (", said.getvalue())
+
     def test_generated_launchers_run_the_dist_proton(self):
         root = self.store()
         steam = self.tmp / "Steam"
@@ -1178,8 +1213,8 @@ class BundleTest(unittest.TestCase):
         self.assertNotIn("if", bundle)
         self.assertIn("tools/droiddeck-esync/release.env", bundle["run"])
         self.assertIn('release_url="https://github.com/${SYNC_BUNDLE_REPO}/releases/download/${SYNC_BUNDLE_TAG}"', bundle["run"])
-        self.assertIn('curl -fsSL --retry 3 -o sync-bundle.tzst "$release_url/$SYNC_BUNDLE_ASSET"', bundle["run"])
-        self.assertIn('curl -fsSL --retry 3 -o sync-index.json "$release_url/index.json"', bundle["run"])
+        self.assertIn('curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o sync-bundle.tzst "$release_url/$SYNC_BUNDLE_ASSET"', bundle["run"])
+        self.assertIn('curl -fsSL --retry 5 --retry-all-errors --connect-timeout 20 -o sync-index.json "$release_url/index.json"', bundle["run"])
         self.assertIn("sha256sum -c -", bundle["run"])
         self.assertNotIn("revoked.txt", bundle["run"])
         stage = {"run": (self.ROOT / recipes["runtime"]["script"]).read_text()}

@@ -5,7 +5,7 @@ enum class SessionLaunchFailure {
     VULKAN_DEVICE_MISSING;
 
     companion object {
-        private val ANSI = Regex("\u001B\\[[0-?]*[ -/]*[@-~]")
+        private val ANSI = Regex("\u001b\\[[0-?]*[ -/]*[@-~]")
         private val STEAM_EXIT = Regex("== steam exited rc=(\\d+)")
 
         fun find(lines: Sequence<String>): SessionLaunchFailure? {
