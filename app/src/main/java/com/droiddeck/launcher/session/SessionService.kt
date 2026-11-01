@@ -1,6 +1,7 @@
 package com.droiddeck.launcher.session
 
 import com.droiddeck.launcher.core.AddonPack
+import com.droiddeck.launcher.gpu.GpuInfo
 import com.droiddeck.launcher.gpu.LinuxVulkanDriver
 import com.droiddeck.launcher.gpu.LinuxVulkanDriverManager
 
@@ -810,6 +811,12 @@ class SessionService : Service() {
             ?.let { guest.add(LinuxVulkanDriver.ENV + "=" + it) }
         val tuOverride = tuDebugOverride()
         val tuDriver = sysmemDriver(linuxDriverId)
+        val gameTuDebug = tuDebugFor(
+            override = tuOverride,
+            tuSysmem = SessionPrefs.tuSysmem(this),
+            driverName = if (tuDriver) "710-720" else "",
+            gpuModel = GpuInfo.detect().model,
+        )
         (tuOverride ?: "sysmem".takeIf { tuDriver || SessionPrefs.tuSysmem(this) })?.let { guest.add("TU_DEBUG=$it") }
         if (SessionPrefs.zinkLazy(this)) {
             guest.add("ZINK_DESCRIPTORS=lazy")
@@ -2288,6 +2295,24 @@ class SessionService : Service() {
         private const val TRACER_NICE = -6
         private const val MIC_RELEASE_TIMEOUT_MS = 5_000L
         private const val TU_DEBUG_SWITCH = "Download/droiddeck-tu-debug"
+        internal fun tuDebugFor(
+            override: String?,
+            tuSysmem: Boolean,
+            driverName: String,
+            gpuModel: Int = GpuInfo.detect().model
+        ): String? {
+            if (!override.isNullOrEmpty()) return override
+            val flags = mutableListOf<String>()
+            if (tuSysmem || driverName.contains("710-720") || driverName.contains("710_720")) {
+                flags.add("sysmem")
+            }
+            if (gpuModel == 741) {
+                flags.add("nolrz")
+                flags.add("nolrzfc")
+            }
+            return if (flags.isNotEmpty()) flags.joinToString(",") else null
+        }
+
         private const val GAME_TU_DEBUG = "DROIDDECK_GAME_TU_DEBUG"
         private const val LEGACY_ENV_SWITCH = "Download/droiddeck-env"
         private const val ENV_SWITCH_NAME = "droiddeck-env"

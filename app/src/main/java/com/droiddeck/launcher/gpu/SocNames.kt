@@ -14,6 +14,11 @@ object SocNames {
         // Xiaomi Mi Note 10 (tucana): Snapdragon 730/730G (SM7150, platform sm6150), Adreno 618.
         "SM7150" to "Snapdragon 730G", "SM7150-AA" to "Snapdragon 730", "SM7150-AB" to "Snapdragon 730G",
         "SDM730" to "Snapdragon 730", "SDM730G" to "Snapdragon 730G",
+        "SC8380XP" to "Snapdragon X Elite", "X1E80100" to "Snapdragon X Elite", "X1E-80-100" to "Snapdragon X Elite",
+        "X1E84100" to "Snapdragon X Elite", "X1E-84-100" to "Snapdragon X Elite",
+        "X1E78100" to "Snapdragon X Elite", "X1E-78-100" to "Snapdragon X Elite",
+        "X1P64100" to "Snapdragon X Plus", "X1P-64-100" to "Snapdragon X Plus",
+        "X1P42100" to "Snapdragon X Plus", "X1P-42-100" to "Snapdragon X Plus",
     )
 
     private val PLATFORMS = mapOf(
@@ -21,6 +26,8 @@ object SocNames {
         "taro" to "Snapdragon 8 Gen 1", "cape" to "Snapdragon 8+ Gen 1", "kalama" to "Snapdragon 8 Gen 2",
         "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite",
         "sm6150" to "Snapdragon 730/730G", "sm7150" to "Snapdragon 730/730G",
+        "hamoa" to "Snapdragon X Elite", "purwa" to "Snapdragon X Plus",
+        "sc8380xp" to "Snapdragon X Elite", "x1e80100" to "Snapdragon X Elite",
     )
 
     fun model(prop: (String) -> String = GpuInfo::systemProperty): String {
