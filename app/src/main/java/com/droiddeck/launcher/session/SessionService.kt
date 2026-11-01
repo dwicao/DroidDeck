@@ -2081,7 +2081,6 @@ class SessionService : Service() {
         completeNativeSleep()
         ThrottleWatch.stop()
         val (ended, endedArch, stoppedGen) = synchronized(stopLock) {
-            if (!SessionState.running) return
             SessionEvents.record("guest.exited", mapOf("status" to status))
             SessionEvents.transition(SessionPhase.STOPPING, "session.stopping", mapOf("status" to status))
             SessionState.running = false
