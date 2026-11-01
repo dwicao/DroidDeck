@@ -9,9 +9,9 @@
 
 DroidDeck brings the SteamOS experience to Android: Valve's Steam client in Big Picture on your Adreno handheld, with Windows games through Valve's ARM64 Proton. **DroidDeck-RE is the independent, stable release line of that project**: the same experience, plus everything below — maintained separately from upstream, with its own versioning starting at **1.0.0**.
 
-> **Why RE instead of upstream?** Upstream moves fast and breaks things; RE picks only what is proven. Every change here is small, tested, and documented: play games from **any folder** (internal, SD card, USB drive or SSD), move and adopt Steam games between libraries without reinstalling, per-game environment defaults (locked 30 FPS base + async shaders where proven), safer graphics defaults, an idle-friendly Steam home, working Steam file dialogs, fixed GOG cloud saves, HTTP proxy downloads, Ubisoft-via-Connect, shared libraries between arm64 and x86-64 clients, and experimental external-display output. Full accounting of what was taken from upstream, what was skipped, and why lives in [docs/upstream-triage.md](docs/upstream-triage.md).
+> **Why this fork instead of upstream?** Upstream reviews at its own pace, so good work waits in open pull requests. This fork merges them instead of waiting: all 89 open upstream PRs are merged into `main` here, which in turn addresses some 17 open upstream issues (EA launcher installs, Ubisoft Connect launches, NTFS USB drives, DualSense support, 6+2 Oryon core pinning, per-game locales, Steam startup progress, Battle.net China installs, and others — see [docs/upstream-triage.md](docs/upstream-triage.md) for the per-item accounting). Remaining open issues are mostly game- or device-specific reports that need hardware to verify; they are triaged in the open, not silently closed. On top of the merged work this fork fixes what it finds (independent Steam client language, joydev rejection for SDL, shared exec cache) and keeps its own [changelog](docs/releases/) per release.
 
-The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck-RE/releases); upstream releases do not include these changes. Installs over previous RE releases keep app data.
+The APKs published here are test-key builds in [this fork's Releases](https://github.com/dwicao/DroidDeck/releases); upstream releases do not include these changes. Installs over previous RE releases keep app data.
 
 <p align="center"><b>100% open source. No ads. No telemetry. No source withheld.</b></p>
 
@@ -40,7 +40,7 @@ The APKs published here are test-key builds in [this fork's Releases](https://gi
   <img src="docs/releases/media/0.6.7/ubuntu-desktop-discover.jpg" width="49%" alt="The Kubuntu desktop with Discover open">
 </p>
 
-Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adreno 6xx is experimental: DirectX 11 uses DXVK 2 and may run, and DirectX 12 games can still crash. Mali, Xclipse, PowerVR, and Adreno 710 are unsupported. No root is required. Allow about 3 GB for the runtime and 1.1 GB more for the desktop and emulators. Install the APK from [Releases](https://github.com/dwicao/DroidDeck-RE/releases), install the Linux runtime, then press **Play** and sign in. Steam downloads on first launch. Install **Desktop & apps** to use the desktop and emulators. The **Store** installs Linux apps and games from Flathub (ARM64 builds) with Flatpak; with additional options to install Appimages and set up scripts. **Stores** (Setup › Stores › "Show Stores in the rail") signs in to GOG, Epic Games and Amazon Games and downloads games into the Games storage. Epic keeps its direct API install path. Opening Epic Stores prepares Epic’s official Linux launcher preview. When installed, Epic games launched from DroidDeck use that client, and games installed in the client are imported into DroidDeck’s library and shortcuts. The x86-64 client runs through FEX on ARM and DroidDeck retains its Proton hooks; this preview and ARM setup are outside Epic’s listed Linux support. The cog on a store’s chip row sets its opening tab and download speed tier.
+Use Android 9 or newer on a supported Adreno device (730 or newer, or 8xx). Adreno 6xx is experimental: DirectX 11 uses DXVK 2 and may run, and DirectX 12 games can still crash. Mali, Xclipse, PowerVR, and Adreno 710 are unsupported. No root is required. Allow about 3 GB for the runtime and 1.1 GB more for the desktop and emulators. Install the APK from [Releases](https://github.com/dwicao/DroidDeck/releases), install the Linux runtime, then press **Play** and sign in. Steam downloads on first launch. Install **Desktop & apps** to use the desktop and emulators. The **Store** installs Linux apps and games from Flathub (ARM64 builds) with Flatpak; with additional options to install Appimages and set up scripts. **Stores** (Setup › Stores › "Show Stores in the rail") signs in to GOG, Epic Games and Amazon Games and downloads games into the Games storage. Epic keeps its direct API install path. Opening Epic Stores prepares Epic’s official Linux launcher preview. When installed, Epic games launched from DroidDeck use that client, and games installed in the client are imported into DroidDeck’s library and shortcuts. The x86-64 client runs through FEX on ARM and DroidDeck retains its Proton hooks; this preview and ARM setup are outside Epic’s listed Linux support. The cog on a store’s chip row sets its opening tab and download speed tier.
 ## Install
 
 1. Android 9 or newer on Adreno 730 or newer, or any 8xx. Adreno 6xx is experimental. Mali, Xclipse, PowerVR and Adreno 710 are unsupported. No root needed.
@@ -97,10 +97,17 @@ out. Past Game Booster and cooling, holding back the platform limit needs system
 the launcher does not have; advanced users do it with Shizuku-based tools such as
 [Muimex11](https://github.com/Inkflow-Gab/Muimex11) (thermal override + GOS removal), at their own
 risk.
+## What upstream proposed, already merged here
+
+Upstream's open backlog is merged into this fork instead of waiting for review. Concretely, `main` here contains all 89 upstream pull requests that were open at the time of the merge: the EA Games launcher installer, Ubisoft Connect launches, NTFS USB drives without root, full DualSense support (lightbar, triggers, touchpad, gyro calibration), foldable and half-folded deck controls, per-component update mirrors, per-game locales, Steam startup progress reporting, Battle.net China installs, the 6+2 Oryon core plan, Kishi/USB rumble, the accessibility tab with Orca, and the rest — each kept as its own merge commit so the history stays reviewable. Where two PRs solved the same problem differently (per-game core pinning, completed Steam language rows in Arabic), the documented perf rationale wins and the losing test is updated with a pointer, not silently dropped.
+
+That merge wave resolves open upstream issues outright (the accessibility tab in #553, GOG maintenance in #680, the "follow screen" divisor in #1640, desktop Chinese support in #210 and #992, Steam startup progress in #812, Fold 7 throttling in #779) and carries the proposed fixes for more (EA + Ubisoft support in #1631, Xwayland stalls in #1123, Battle.net China installs in #1659, Quest 3 gamescope aborts in #1792, per-game relative mouse in #845, keyboard mapping in #567), among others. Issue reports that are game- or device-specific stay open until someone can reproduce them on hardware; nothing is closed to inflate numbers.
+
+On top of the merged work, this fork carries its own fixes: an independent Steam client language selector (Steam no longer forced to the launcher language, #708), restored joydev rejection so SDL reads real gamepad IDs, a shared exec cache for relocated Wine code, and a hard-coded-English audit of new UI copy. The APKs below are test-key signed CI builds of exactly this tree.
 
 ## What RE adds
 
-Everything below ships in **1.0.0 (40)** and is independent of upstream releases (see the note at the top). Release notes with APKs live on the [Releases page](https://github.com/dwicao/DroidDeck-RE/releases).
+Everything below ships in **1.0.0 (40)** and is independent of upstream releases (see the note at the top). Release notes with APKs live on the [Releases page](https://github.com/dwicao/DroidDeck/releases).
 
 ### Session pacing, GPU, and thermals
 
@@ -198,7 +205,7 @@ Everything below ships in **1.0.0 (40)** and is independent of upstream releases
 <details>
 <summary><strong>Full history</strong></summary>
 
-Every fork change ships in a dated release with notes under [`docs/releases/`](docs/releases/) — see the [Releases page](https://github.com/dwicao/DroidDeck-RE/releases) for the APKs. The commit history stays linear and reviewable; upstream work taken in is listed per item in [docs/upstream-triage.md](docs/upstream-triage.md).
+Every fork change ships in a dated release with notes under [`docs/releases/`](docs/releases/) — see the [Releases page](https://github.com/dwicao/DroidDeck/releases) for the APKs. The commit history stays linear and reviewable; upstream work taken in is listed per item in [docs/upstream-triage.md](docs/upstream-triage.md).
 </details>
 
 ## Community
