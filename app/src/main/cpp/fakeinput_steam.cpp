@@ -4617,42 +4617,42 @@ static ssize_t read_input(int fd, void *buf, size_t count) {
           if (events == 0) break;
           const uint8_t *ring_events = reinterpret_cast<const uint8_t *>(fake.ring) +
                                        FAKE_INPUT_RING_HEADER_SIZE;
+          std::vector<struct input_event> input_events(events);
           for (size_t i = 0; i < events; ++i) {
             size_t index = (fake.read_seq + i) % FAKE_INPUT_RING_CAPACITY;
-            struct input_event ev;
+            struct input_event &ev = input_events[i];
             memcpy(&ev, ring_events + index * FAKE_INPUT_EVENT_SIZE, FAKE_INPUT_EVENT_SIZE);
             if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
-            memcpy(static_cast<uint8_t *>(buf) + i * FAKE_INPUT_EVENT_SIZE, &ev,
-                   FAKE_INPUT_EVENT_SIZE);
           }
           // A producer can lap the reader while it copies. Discard that copy
           // instead of delivering torn/overwritten events or losing a release.
           __atomic_thread_fence(__ATOMIC_ACQUIRE);
           if (snap.sequence != __atomic_load_n(&fake.ring->snapshot_seq, __ATOMIC_RELAXED))
             continue;
-          fake.read_seq += events;
-          return static_cast<ssize_t>(events * FAKE_INPUT_EVENT_SIZE);
+          ssize_t copied = copy_input_events(buf, input_events.data(), events);
+          if (copied > 0) fake.read_seq += copied / sizeof(struct input_event);
+          return copied;
         }
       }
 
       // Finish a captured frame before handling a newer resync. Its counter is
       // acknowledged only when that newer snapshot is actually captured.
       size_t events = std::min(requested, fake.keyframe_remaining);
+      std::vector<struct input_event> keyed(events);
       struct timeval now = {};
       gettimeofday(&now, nullptr);
       for (size_t i = 0; i < events; ++i) {
         size_t index = kNeutralEventCount - fake.keyframe_remaining;
-        struct input_event ev = {};
+        struct input_event &ev = keyed[i];
         ev.time = now;
         ev.type = kNeutralEvents[index].type;
         ev.code = kNeutralEvents[index].code;
         ev.value = keyframe_value(fake, ev.type, ev.code);
         if (ev.type == EV_ABS) ev.code = presented_abs_code(fake, ev.code);
-        memcpy(static_cast<uint8_t *>(buf) + i * FAKE_INPUT_EVENT_SIZE,
-               &ev, FAKE_INPUT_EVENT_SIZE);
-        --fake.keyframe_remaining;
       }
-      return static_cast<ssize_t>(events * FAKE_INPUT_EVENT_SIZE);
+      ssize_t keyed_out = copy_input_events(buf, keyed.data(), events);
+      if (keyed_out > 0) fake.keyframe_remaining -= keyed_out / sizeof(struct input_event);
+      return keyed_out;
     }
     if (nonblock) {
       errno = EAGAIN;
