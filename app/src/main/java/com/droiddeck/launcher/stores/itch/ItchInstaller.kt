@@ -57,6 +57,7 @@ internal class ItchInstaller(
         val upload = (if (chosen.isBlank()) ItchUploads.windows(uploads) else ItchUploads.byId(uploads, chosen))
             ?: throw IllegalStateException(app.getString(R.string.stores_itch_no_upload))
         val uploadId = upload.optString("id")
+        val linux = ItchUploads.linuxOnly(ItchUploads.platforms(upload))
         val filename = ItchUploads.filename(upload)
         val size = ItchUploads.size(upload)
         val scratch = StoreInstallRoot.scratchDir(app, Store.ITCH, item.id)
@@ -72,7 +73,7 @@ internal class ItchInstaller(
             }
             var picked: String? = null
             if (patched) {
-                picked = install(archive, filename, handle, resuming, true)
+                picked = install(archive, filename, handle, resuming, patched = true, linux = linux)
                 if (picked == null) {
                     if (cancelled.get()) return null
                     handle.log("itch.io: the patched copy of ${item.title} has no exe, doing a full update")
@@ -84,7 +85,7 @@ internal class ItchInstaller(
                 download(key, downloadKeyId, uploadId, upload.optString("updated_at", upload.optString("updatedAt")), archive, size, handle)
                 if (cancelled.get()) return null
                 handle.stage(DownloadStage.INSTALL)
-                picked = install(archive, filename, handle, resuming, false)
+                picked = install(archive, filename, handle, resuming, patched = false, linux = linux)
             }
             picked
         } catch (t: Throwable) {
@@ -109,7 +110,7 @@ internal class ItchInstaller(
             installedAt = System.currentTimeMillis(),
             cover = item.imageUrl,
             hero = item.imageUrl,
-            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId, "buildId" to buildId),
+            extra = mapOf("gameId" to gameId, "downloadKeyId" to downloadKeyId, "uploadId" to uploadId, "buildId" to buildId) + if (linux) mapOf("platform" to "linux") else emptyMap<String, String>(),
             cloud = false,
         )
         StoreInstalls.complete(app, folder, sidecar) { done, steps -> handle.stageProgress(done.toLong(), steps.toLong()) }
@@ -223,7 +224,7 @@ internal class ItchInstaller(
         return false
     }
 
-    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean, patched: Boolean = false): String? {
+    private fun install(archive: File, filename: String, handle: DownloadQueue.JobHandle, resuming: Boolean, patched: Boolean = false, linux: Boolean = false): String? {
         work = if (updating) File(folder, ItchStaging.DIR) else folder
         if (updating && !patched) ItchStaging.delete(work)
         work.mkdirs()
@@ -231,9 +232,10 @@ internal class ItchInstaller(
         val exe = try {
             if (!patched) unpack(archive, filename, handle)
             val hint = filename.substringBeforeLast('.')
-            var picked = StoreExe.pick(work, hint.ifBlank { null }, item.title)
+            var picked = if (linux) StoreExe.pickLinux(work, hint.ifBlank { null }, item.title)
+                else StoreExe.pick(work, hint.ifBlank { null }, item.title)
             var passes = 0
-            while (picked.isBlank() && passes < 2 && !cancelled.get()) {
+            while (!linux && picked.isBlank() && passes < 2 && !cancelled.get()) {
                 val inner = ItchArchives.inner(work) ?: break
                 handle.log("itch.io: no exe yet, unpacking ${inner.name}")
                 unpack(inner, inner.name, handle)
@@ -248,7 +250,7 @@ internal class ItchInstaller(
             throw t
         }
         if (exe.isBlank()) {
-            handle.log("itch.io: no exe found in ${folder.name}")
+            handle.log("itch.io: no ${if (linux) "Linux program" else "exe"} found in ${folder.name}")
             if (updating) ItchStaging.delete(work)
             return null
         }

@@ -30,6 +30,7 @@ object AddedGames {
         val exeUncertain: Boolean = false,
         val launchOptions: String = "",
         val single: Boolean = false,
+        val linux: Boolean = false,
     ) {
         fun folderName(): String = folder.name
     }
@@ -434,7 +435,8 @@ object AddedGames {
                 source = sidecar?.store?.id ?: Library.ADDED, storeId = sidecar?.id,
                 exeUncertain = sidecar == null && chosen == null && adopted == null && ranking.uncertain,
                 launchOptions = if (sidecar == null) SessionPrefs.addedGameLaunch(context, folder.path) else "",
-                single = single != null))
+                single = single != null,
+                linux = sidecar?.extra?.get("platform") == "linux"))
         }
     }
 
@@ -512,6 +514,7 @@ object AddedGames {
             identifiedAppId(g.folder, g.exe)?.let { json.append(",\"steam_id\":").append(it) }
             if (g.launchOptions.isNotEmpty()) json.append(",\"launch\":").append(quote(g.launchOptions))
             if (g.source != Library.ADDED) json.append(",\"store\":").append(quote(g.source))
+            if (g.linux) json.append(",\"linux\":true")
             val art = AddedGameArt.resolve(context, g)
             val pieces = listOf("p" to art.portrait, "header" to art.header, "hero" to art.hero, "logo" to art.logo, "icon" to art.icon)
                 .mapNotNull { (k, f) -> f?.let { file -> artGuestPath(context, file)?.let { k to it } } }
