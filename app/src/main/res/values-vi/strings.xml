@@ -649,6 +649,7 @@
     <string name="hud_size_pill">Dạng viên</string>
     <string name="hud_size_minimal">Tối giản</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Thanh</string>
     <string name="hud_locked">Khóa vị trí</string>
     <string name="hud_locked_hint">Kéo HUD để di chuyển; nhấn giữ để khóa hoặc mở khóa. Khi đã khóa, các nút điều khiển trên màn hình bên dưới vẫn hoạt động.</string>
     <string name="hud_group_look">Giao diện</string>
@@ -699,7 +700,6 @@
     <string name="hud_export_failed">Không thể lưu báo cáo HUD.</string>
     <string name="hud_reset">Đặt lại thiết lập HUD</string>
     <string name="hud_reset_button">Đặt lại</string>
-    <string name="hud_credit">FusionHUD của The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Chế độ chia tỷ lệ</string>
     <string name="drawer_scaling_sharpness">Độ sắc nét khi chia tỷ lệ</string>
     <string name="drawer_effects">Hiệu ứng màn hình</string>
@@ -1678,6 +1678,8 @@
     <string name="fm_accept">Chấp nhận</string>
     <string name="fm_decline">Từ chối</string>
     <string name="fm_drive_not_readable">%1$s đã được gắn nhưng hiện không đọc được</string>
+    <string name="fm_drive_access_title">Cho phép truy cập %1$s</string>
+    <string name="fm_drive_access_text">Android cho DroidDeck thấy ổ này nhưng không đọc được. Hãy bật Quyền truy cập mọi tệp cho DroidDeck rồi quay lại.</string>
     <string name="fm_list_view">Xem dạng danh sách</string>
     <string name="fm_grid_view">Xem dạng lưới</string>
     <string name="fm_search">Tìm kiếm</string>
@@ -1777,7 +1779,7 @@
     <string name="flatpakmgr_not_ready">Thiết lập Flatpak trước</string>
     <string name="flatpakmgr_starting">Đang khởi động</string>
     <string name="flatpakmgr_exit_status">Flatpak đã thoát với mã %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s được dựng cho %2$s, nhưng ứng dụng Flatpak ở đây phải dựng cho ARM64. Hãy dùng bản AppImage của ứng dụng; DroidDeck chạy AppImage x86 qua FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s được dựng cho %2$s, DroidDeck không chạy được. Ứng dụng Flatpak ở đây cần bản ARM64 hoặc x86_64.</string>
     <string name="flatpakmgr_installing">Đang cài %1$s</string>
     <string name="flatpakmgr_updating">Đang cập nhật %1$s</string>
     <string name="flatpakmgr_removing">Đang gỡ %1$s</string>
@@ -2357,6 +2359,9 @@
     <string name="edit_target">Đích</string>
     <string name="edit_start_in">Khởi chạy trong</string>
     <string name="edit_launch_options">Tùy chọn khởi chạy</string>
+    <string name="edit_launch_options_steam_hint">Dùng chung với Thuộc tính của Steam: thay đổi ở một nơi sẽ hiện ở cả hai.</string>
+    <string name="edit_launch_options_not_saved">Không thể lưu tùy chọn khởi chạy vào Steam. Hãy thử lại.</string>
+    <string name="edit_launch_options_desktop">Steam có thể đang mở trong phiên desktop. Hãy đổi tùy chọn khởi chạy trong Thuộc tính của Steam, hoặc đóng phiên trước.</string>
     <string name="edit_artwork">Hình ảnh</string>
     <string name="edit_other_exe">Exe khác…</string>
     <string name="edit_remove">Xóa</string>

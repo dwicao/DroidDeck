@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Piller</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">List</string>
     <string name="hud_locked">Lås på plats</string>
     <string name="hud_locked_hint">Dra HUD:en för att flytta den; ett långt tryck låser eller låser upp den. När den är låst fungerar skärmkontrollerna under den fortfarande.</string>
     <string name="hud_group_look">Utseende</string>
@@ -701,7 +702,6 @@
     <string name="hud_export_failed">Det gick inte att spara HUD-rapporten.</string>
     <string name="hud_reset">Återställ HUD-inställningar</string>
     <string name="hud_reset_button">Återställ</string>
-    <string name="hud_credit">FusionHUD av The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Skalningsläge</string>
     <string name="drawer_scaling_sharpness">Skalningsskärpa</string>
     <string name="drawer_effects">Skärmeffekter</string>
@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Acceptera</string>
     <string name="fm_decline">Avböj</string>
     <string name="fm_drive_not_readable">%1$s är monterad men inte läsbar just nu</string>
+    <string name="fm_drive_access_title">Tillåt åtkomst till %1$s</string>
+    <string name="fm_drive_access_text">Android låter DroidDeck se den här enheten men inte läsa den. Slå på Åtkomst till alla filer för DroidDeck och kom sedan tillbaka.</string>
     <string name="fm_list_view">Listvy</string>
     <string name="fm_grid_view">Rutnätsvy</string>
     <string name="fm_search">Sök</string>
@@ -1800,7 +1802,7 @@
     <string name="flatpakmgr_not_ready">Konfigurera Flatpak först</string>
     <string name="flatpakmgr_starting">Startar</string>
     <string name="flatpakmgr_exit_status">Flatpak avslutades med status %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s är byggd för %2$s, men Flatpak-appar här måste vara byggda för ARM64. Använd appens AppImage i stället; DroidDeck kör x86-AppImages via FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s är byggd för %2$s, som DroidDeck inte kan köra. Flatpak-appar här behöver en ARM64- eller x86_64-version.</string>
     <string name="flatpakmgr_installing">Installerar %1$s</string>
     <string name="flatpakmgr_updating">Uppdaterar %1$s</string>
     <string name="flatpakmgr_removing">Tar bort %1$s</string>
@@ -2380,6 +2382,9 @@
     <string name="edit_target">Mål</string>
     <string name="edit_start_in">Starta i</string>
     <string name="edit_launch_options">Startalternativ</string>
+    <string name="edit_launch_options_steam_hint">Delas med Egenskaper i Steam: en ändring på det ena stället syns på båda.</string>
+    <string name="edit_launch_options_not_saved">Det gick inte att spara startalternativen i Steam. Försök igen.</string>
+    <string name="edit_launch_options_desktop">Steam kan vara öppet i skrivbordssessionen. Ändra startalternativen under Egenskaper där, eller stäng sessionen först.</string>
     <string name="edit_artwork">Bildmaterial</string>
     <string name="edit_other_exe">Annan exe…</string>
     <string name="edit_remove">Ta bort</string>

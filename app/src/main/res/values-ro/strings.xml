@@ -653,6 +653,7 @@
     <string name="hud_size_pill">Pastilă</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Bară</string>
     <string name="hud_locked">Blochează pe loc</string>
     <string name="hud_locked_hint">Trage HUD-ul pentru a-l muta; o apăsare lungă îl blochează sau îl deblochează. Cât timp e blocat, comenzile de pe ecran de sub el funcționează în continuare.</string>
     <string name="hud_group_look">Aspect</string>
@@ -703,7 +704,6 @@
     <string name="hud_export_failed">Raportul HUD nu a putut fi salvat.</string>
     <string name="hud_reset">Resetează setările HUD</string>
     <string name="hud_reset_button">Resetează</string>
-    <string name="hud_credit">FusionHUD de The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Mod de scalare</string>
     <string name="drawer_scaling_sharpness">Claritatea scalării</string>
     <string name="drawer_effects">Efecte de ecran</string>
@@ -1720,6 +1720,8 @@
     <string name="fm_accept">Acceptă</string>
     <string name="fm_decline">Refuză</string>
     <string name="fm_drive_not_readable">%1$s este montat, dar nu poate fi citit acum</string>
+    <string name="fm_drive_access_title">Permite accesul la %1$s</string>
+    <string name="fm_drive_access_text">Android permite DroidDeck să vadă această unitate, dar nu să o citească. Activează Acces la toate fișierele pentru DroidDeck, apoi revino.</string>
     <string name="fm_list_view">Vizualizare listă</string>
     <string name="fm_grid_view">Vizualizare grilă</string>
     <string name="fm_search">Căutare</string>
@@ -1823,7 +1825,7 @@
     <string name="flatpakmgr_not_ready">Configurează mai întâi Flatpak</string>
     <string name="flatpakmgr_starting">Se pornește</string>
     <string name="flatpakmgr_exit_status">Flatpak s-a închis cu starea %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s este construită pentru %2$s, dar aici aplicațiile Flatpak trebuie să fie pentru ARM64. Folosește în schimb AppImage-ul aplicației; DroidDeck rulează AppImage-urile x86 prin FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s este construită pentru %2$s, pe care DroidDeck nu o poate rula. Aici aplicațiile Flatpak au nevoie de o versiune pentru ARM64 sau x86_64.</string>
     <string name="flatpakmgr_installing">Se instalează %1$s</string>
     <string name="flatpakmgr_updating">Se actualizează %1$s</string>
     <string name="flatpakmgr_removing">Se elimină %1$s</string>
@@ -2403,6 +2405,9 @@
     <string name="edit_target">Țintă</string>
     <string name="edit_start_in">Pornește în</string>
     <string name="edit_launch_options">Opțiuni de lansare</string>
+    <string name="edit_launch_options_steam_hint">Comune cu Proprietățile din Steam: o modificare într-unul dintre locuri apare în ambele.</string>
+    <string name="edit_launch_options_not_saved">Opțiunile de lansare nu au putut fi salvate în Steam. Încearcă din nou.</string>
+    <string name="edit_launch_options_desktop">Steam poate fi deschis în sesiunea desktop. Schimbă opțiunile de lansare din Proprietățile lui sau închide mai întâi sesiunea.</string>
     <string name="edit_artwork">Grafică</string>
     <string name="edit_other_exe">Alt exe…</string>
     <string name="edit_remove">Elimină</string>

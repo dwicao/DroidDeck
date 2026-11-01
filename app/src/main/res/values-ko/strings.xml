@@ -649,6 +649,7 @@
     <string name="hud_size_pill">캡슐</string>
     <string name="hud_size_minimal">미니멀</string>
     <string name="hud_size_mega">메가</string>
+    <string name="hud_size_strip">바</string>
     <string name="hud_locked">위치 고정</string>
     <string name="hud_locked_hint">HUD를 드래그하여 이동하고, 길게 눌러 고정하거나 해제합니다. 고정된 동안에도 아래에 있는 화면 컨트롤은 계속 작동합니다.</string>
     <string name="hud_group_look">외관</string>
@@ -699,7 +700,6 @@
     <string name="hud_export_failed">HUD 보고서를 저장할 수 없습니다.</string>
     <string name="hud_reset">HUD 설정 초기화</string>
     <string name="hud_reset_button">초기화</string>
-    <string name="hud_credit">FusionHUD 제작: The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">스케일링 모드</string>
     <string name="drawer_scaling_sharpness">스케일링 선명도</string>
     <string name="drawer_effects">화면 효과</string>
@@ -1678,6 +1678,8 @@
     <string name="fm_accept">수락</string>
     <string name="fm_decline">거절</string>
     <string name="fm_drive_not_readable">%1$s이(가) 마운트되었지만 지금은 읽을 수 없습니다</string>
+    <string name="fm_drive_access_title">%1$s 액세스 허용</string>
+    <string name="fm_drive_access_text">Android에서 DroidDeck이 이 드라이브를 볼 수는 있지만 읽을 수는 없습니다. DroidDeck의 모든 파일 액세스를 켠 다음 돌아오세요.</string>
     <string name="fm_list_view">목록 보기</string>
     <string name="fm_grid_view">격자 보기</string>
     <string name="fm_search">검색</string>
@@ -1777,7 +1779,7 @@
     <string name="flatpakmgr_not_ready">먼저 Flatpak을 설정하세요</string>
     <string name="flatpakmgr_starting">시작 중</string>
     <string name="flatpakmgr_exit_status">Flatpak이 종료되었습니다(상태 %1$d)</string>
-    <string name="flatpakmgr_wrong_arch">%1$s은(는) %2$s용으로 빌드되었지만 여기서는 Flatpak 앱이 ARM64용이어야 합니다. 대신 앱의 AppImage를 사용하세요. DroidDeck은 x86 AppImage를 FEX로 실행합니다.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s은(는) DroidDeck이 실행할 수 없는 %2$s용으로 빌드되었습니다. 여기서 Flatpak 앱은 ARM64 또는 x86_64 빌드여야 합니다.</string>
     <string name="flatpakmgr_installing">%1$s 설치 중</string>
     <string name="flatpakmgr_updating">%1$s 업데이트 중</string>
     <string name="flatpakmgr_removing">%1$s 제거 중</string>
@@ -2357,6 +2359,9 @@
     <string name="edit_target">대상</string>
     <string name="edit_start_in">시작 위치</string>
     <string name="edit_launch_options">실행 옵션</string>
+    <string name="edit_launch_options_steam_hint">Steam 속성과 공유됩니다. 어느 한쪽에서 바꾸면 양쪽에 모두 반영됩니다.</string>
+    <string name="edit_launch_options_not_saved">실행 옵션을 Steam에 저장하지 못했습니다. 다시 시도하세요.</string>
+    <string name="edit_launch_options_desktop">데스크톱 세션에서 Steam이 열려 있을 수 있습니다. Steam 속성에서 실행 옵션을 바꾸거나 먼저 세션을 닫으세요.</string>
     <string name="edit_artwork">아트워크</string>
     <string name="edit_other_exe">다른 exe…</string>
     <string name="edit_remove">제거</string>

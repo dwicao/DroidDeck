@@ -638,6 +638,7 @@
     <string name="hud_size_pill">膠囊</string>
     <string name="hud_size_minimal">極簡</string>
     <string name="hud_size_mega">超大</string>
+    <string name="hud_size_strip">橫條</string>
     <string name="hud_locked">鎖定位置</string>
     <string name="hud_locked_hint">拖曳 HUD 可移動位置；長按可鎖定或解鎖。鎖定時，下方的螢幕控制項仍可使用。</string>
     <string name="hud_group_look">外觀</string>
@@ -688,7 +689,6 @@
     <string name="hud_export_failed">無法儲存 HUD 報告。</string>
     <string name="hud_reset">重設 HUD 設定</string>
     <string name="hud_reset_button">重設</string>
-    <string name="hud_credit">FusionHUD，作者 The412Banner，github.com/The412Banner/FusionHUD (GPL-3.0)。</string>
     <string name="drawer_scaling">縮放模式</string>
     <string name="drawer_scaling_sharpness">縮放銳利度</string>
     <string name="drawer_effects">畫面效果</string>
@@ -1649,6 +1649,8 @@
     <string name="fm_accept">接受</string>
     <string name="fm_decline">拒絕</string>
     <string name="fm_drive_not_readable">%1$s 已掛載，但目前無法讀取</string>
+    <string name="fm_drive_access_title">允許存取 %1$s</string>
+    <string name="fm_drive_access_text">Android 允許 DroidDeck 看到這個磁碟，但不允許讀取。請為 DroidDeck 開啟「所有檔案存取權」，然後返回。</string>
     <string name="fm_list_view">清單檢視</string>
     <string name="fm_grid_view">格狀檢視</string>
     <string name="fm_search">搜尋</string>
@@ -1748,7 +1750,7 @@
     <string name="flatpakmgr_not_ready">請先設定 Flatpak</string>
     <string name="flatpakmgr_starting">正在啟動</string>
     <string name="flatpakmgr_exit_status">Flatpak 已結束，狀態碼 %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s 是為 %2$s 建置的，但這裡的 Flatpak 應用程式必須為 ARM64 建置。請改用該應用程式的 AppImage；DroidDeck 會透過 FEX 執行 x86 AppImage。</string>
+    <string name="flatpakmgr_wrong_arch">%1$s 是為 %2$s 建置的，DroidDeck 無法執行。這裡的 Flatpak 應用程式需要 ARM64 或 x86_64 版本。</string>
     <string name="flatpakmgr_installing">正在安裝 %1$s</string>
     <string name="flatpakmgr_updating">正在更新 %1$s</string>
     <string name="flatpakmgr_removing">正在移除 %1$s</string>
@@ -2325,6 +2327,9 @@
     <string name="edit_target">目標</string>
     <string name="edit_start_in">開始位置</string>
     <string name="edit_launch_options">啟動選項</string>
+    <string name="edit_launch_options_steam_hint">與 Steam 的「內容」共用：在任一處變更，兩處都會更新。</string>
+    <string name="edit_launch_options_not_saved">無法將啟動選項儲存至 Steam。請再試一次。</string>
+    <string name="edit_launch_options_desktop">Steam 可能正在桌面工作階段中執行。請在 Steam 的「內容」中變更啟動選項，或先關閉該工作階段。</string>
     <string name="edit_artwork">圖片</string>
     <string name="edit_other_exe">其他 exe…</string>
     <string name="edit_remove">移除</string>

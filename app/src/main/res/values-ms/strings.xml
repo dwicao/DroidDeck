@@ -649,6 +649,7 @@
     <string name="hud_size_pill">Pil</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Jalur</string>
     <string name="hud_locked">Kunci di tempat</string>
     <string name="hud_locked_hint">Seret HUD untuk mengalihkannya; tekan lama untuk mengunci atau membuka kuncinya. Semasa dikunci, kawalan skrin di bawahnya masih berfungsi.</string>
     <string name="hud_group_look">Rupa</string>
@@ -699,7 +700,6 @@
     <string name="hud_export_failed">Tidak dapat menyimpan laporan HUD.</string>
     <string name="hud_reset">Set semula tetapan HUD</string>
     <string name="hud_reset_button">Set semula</string>
-    <string name="hud_credit">FusionHUD oleh The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Mod penskalaan</string>
     <string name="drawer_scaling_sharpness">Ketajaman penskalaan</string>
     <string name="drawer_effects">Kesan skrin</string>
@@ -1678,6 +1678,8 @@
     <string name="fm_accept">Terima</string>
     <string name="fm_decline">Tolak</string>
     <string name="fm_drive_not_readable">%1$s dilekapkan tetapi tidak dapat dibaca sekarang</string>
+    <string name="fm_drive_access_title">Benarkan akses kepada %1$s</string>
+    <string name="fm_drive_access_text">Android membenarkan DroidDeck melihat pemacu ini tetapi tidak membacanya. Hidupkan Akses semua fail untuk DroidDeck, kemudian kembali.</string>
     <string name="fm_list_view">Paparan senarai</string>
     <string name="fm_grid_view">Paparan grid</string>
     <string name="fm_search">Cari</string>
@@ -1777,7 +1779,7 @@
     <string name="flatpakmgr_not_ready">Sediakan Flatpak dahulu</string>
     <string name="flatpakmgr_starting">Memulakan</string>
     <string name="flatpakmgr_exit_status">Flatpak keluar dengan status %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s dibina untuk %2$s, tetapi apl Flatpak di sini mesti dibina untuk ARM64. Gunakan AppImage apl itu; DroidDeck menjalankan AppImage x86 melalui FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s dibina untuk %2$s, yang tidak dapat dijalankan oleh DroidDeck. Apl Flatpak di sini memerlukan binaan ARM64 atau x86_64.</string>
     <string name="flatpakmgr_installing">Memasang %1$s</string>
     <string name="flatpakmgr_updating">Mengemas kini %1$s</string>
     <string name="flatpakmgr_removing">Mengalih keluar %1$s</string>
@@ -2357,6 +2359,9 @@
     <string name="edit_target">Sasaran</string>
     <string name="edit_start_in">Mula dalam</string>
     <string name="edit_launch_options">Pilihan pelancaran</string>
+    <string name="edit_launch_options_steam_hint">Dikongsi dengan Properties dalam Steam: perubahan di salah satu tempat dipaparkan di kedua-duanya.</string>
+    <string name="edit_launch_options_not_saved">Tidak dapat menyimpan pilihan pelancaran ke Steam. Cuba lagi.</string>
+    <string name="edit_launch_options_desktop">Steam mungkin terbuka dalam sesi desktop. Tukar pilihan pelancaran dalam Properties Steam, atau tutup sesi itu dahulu.</string>
     <string name="edit_artwork">Seni</string>
     <string name="edit_other_exe">Exe lain…</string>
     <string name="edit_remove">Alih keluar</string>

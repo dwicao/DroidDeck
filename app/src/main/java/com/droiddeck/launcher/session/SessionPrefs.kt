@@ -100,6 +100,38 @@ object SessionPrefs {
         prefs(context).edit().putString("secondScreenPanel", mode).apply()
     }
 
+    fun statsStrip(context: Context): String? = prefs(context).getString("statsStrip", null)
+
+    fun setStatsStrip(context: Context, id: String) {
+        prefs(context).edit().putString("statsStrip", id).apply()
+    }
+
+    fun statsSpeedUnit(context: Context): String? = prefs(context).getString("statsSpeedUnit", null)
+
+    fun setStatsSpeedUnit(context: Context, id: String) {
+        prefs(context).edit().putString("statsSpeedUnit", id).apply()
+    }
+
+    fun statsDash(context: Context): String? = prefs(context).getString("statsDash", null)
+
+    fun setStatsDash(context: Context, id: String) {
+        prefs(context).edit().putString("statsDash", id).apply()
+    }
+
+    /** In-game stats "Send dashboard data" Automatic: on unless the user switched it off. */
+    fun telemetryAuto(context: Context): Boolean = prefs(context).getBoolean("telemetryAuto", true)
+
+    fun setTelemetryAuto(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("telemetryAuto", on).apply()
+    }
+
+    /** Games the user switched off by hand, as TelemetryOutput keys; Automatic leaves them alone. */
+    fun telemetryOff(context: Context): Set<String> = prefs(context).getStringSet("telemetryOff", null)?.toSet().orEmpty()
+
+    fun setTelemetryOff(context: Context, keys: Set<String>) {
+        prefs(context).edit().putStringSet("telemetryOff", keys.toSet()).apply()
+    }
+
     fun dualScreenLauncher(context: Context): Boolean = prefs(context).getBoolean("dualScreenLauncher", true)
 
     fun setDualScreenLauncher(context: Context, on: Boolean) {
@@ -286,18 +318,18 @@ object SessionPrefs {
         prefs(context).edit().putInt("hudOpacity", percent.coerceIn(HUD_OPACITY_RANGE)).apply()
     }
 
-    fun fusionHudConfig(context: Context): String? = prefs(context).getString("fusionHud", null)
+    fun droidDeckHudConfig(context: Context): String? = prefs(context).getString("__KEEP_droidDeckHud__", null)
 
-    fun setFusionHudConfig(context: Context, config: String) {
-        prefs(context).edit().putString("fusionHud", config).apply()
+    fun setDroidDeckHudConfig(context: Context, config: String) {
+        prefs(context).edit().putString("__KEEP_droidDeckHud__", config).apply()
     }
 
-    fun fusionHudPosition(context: Context): Pair<Float, Float>? =
-        prefs(context).getString("fusionHudPos", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
+    fun droidDeckHudPosition(context: Context): Pair<Float, Float>? =
+        prefs(context).getString("__KEEP_droidDeckHudPos__", null)?.split(',')?.mapNotNull { it.toFloatOrNull() }
             ?.takeIf { it.size == 2 }?.let { it[0] to it[1] }
 
-    fun setFusionHudPosition(context: Context, x: Float, y: Float) {
-        prefs(context).edit().putString("fusionHudPos", "$x,$y").apply()
+    fun setDroidDeckHudPosition(context: Context, x: Float, y: Float) {
+        prefs(context).edit().putString("__KEEP_droidDeckHudPos__", "$x,$y").apply()
     }
 
     const val HUD_COLOR_MINT = "mint"
@@ -1162,7 +1194,7 @@ object SessionPrefs {
 
     /** The drawer's frame limit slider: its first stop is Off. */
     const val FPS_LIMIT_OFF = 15
-    const val FPS_LIMIT_MAX = 120
+    const val FPS_LIMIT_MAX = 165
 
     /**
      * Buffers go back to the game as soon as they are replaced instead of once per refresh;

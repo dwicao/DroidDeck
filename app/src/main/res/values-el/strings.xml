@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Κάψουλα</string>
     <string name="hud_size_minimal">Ελάχιστο</string>
     <string name="hud_size_mega">Μέγα</string>
+    <string name="hud_size_strip">Λωρίδα</string>
     <string name="hud_locked">Κλείδωμα θέσης</string>
     <string name="hud_locked_hint">Σύρετε το HUD για να το μετακινήσετε· ένα παρατεταμένο πάτημα το κλειδώνει ή το ξεκλειδώνει. Όσο είναι κλειδωμένο, τα χειριστήρια οθόνης από κάτω του εξακολουθούν να λειτουργούν.</string>
     <string name="hud_group_look">Εμφάνιση</string>
@@ -701,7 +702,6 @@
     <string name="hud_export_failed">Δεν ήταν δυνατή η αποθήκευση της αναφοράς HUD.</string>
     <string name="hud_reset">Επαναφορά ρυθμίσεων HUD</string>
     <string name="hud_reset_button">Επαναφορά</string>
-    <string name="hud_credit">FusionHUD από The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Λειτουργία κλιμάκωσης</string>
     <string name="drawer_scaling_sharpness">Οξύτητα κλιμάκωσης</string>
     <string name="drawer_effects">Εφέ οθόνης</string>
@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Αποδοχή</string>
     <string name="fm_decline">Απόρριψη</string>
     <string name="fm_drive_not_readable">Το %1$s είναι προσαρτημένο αλλά δεν είναι αναγνώσιμο αυτή τη στιγμή</string>
+    <string name="fm_drive_access_title">Να επιτραπεί η πρόσβαση στο %1$s</string>
+    <string name="fm_drive_access_text">Το Android επιτρέπει στο DroidDeck να βλέπει αυτόν τον δίσκο αλλά όχι να τον διαβάζει. Ενεργοποιήστε την Πρόσβαση σε όλα τα αρχεία για το DroidDeck και επιστρέψτε.</string>
     <string name="fm_list_view">Προβολή λίστας</string>
     <string name="fm_grid_view">Προβολή πλέγματος</string>
     <string name="fm_search">Αναζήτηση</string>
@@ -1800,7 +1802,7 @@
     <string name="flatpakmgr_not_ready">Ρυθμίστε πρώτα το Flatpak</string>
     <string name="flatpakmgr_starting">Γίνεται εκκίνηση</string>
     <string name="flatpakmgr_exit_status">Το Flatpak έκλεισε με κατάσταση %1$d</string>
-    <string name="flatpakmgr_wrong_arch">Το %1$s είναι φτιαγμένο για %2$s, αλλά οι εφαρμογές Flatpak εδώ πρέπει να είναι για ARM64. Χρησιμοποιήστε το AppImage της εφαρμογής· το DroidDeck εκτελεί x86 AppImage μέσω FEX.</string>
+    <string name="flatpakmgr_wrong_arch">Το %1$s είναι φτιαγμένο για %2$s, που το DroidDeck δεν μπορεί να εκτελέσει. Οι εφαρμογές Flatpak εδώ χρειάζονται έκδοση για ARM64 ή x86_64.</string>
     <string name="flatpakmgr_installing">Εγκατάσταση %1$s</string>
     <string name="flatpakmgr_updating">Ενημέρωση %1$s</string>
     <string name="flatpakmgr_removing">Κατάργηση %1$s</string>
@@ -2380,6 +2382,9 @@
     <string name="edit_target">Προορισμός</string>
     <string name="edit_start_in">Εκκίνηση σε</string>
     <string name="edit_launch_options">Επιλογές εκκίνησης</string>
+    <string name="edit_launch_options_steam_hint">Κοινές με τις Ιδιότητες του Steam: μια αλλαγή στο ένα σημείο εμφανίζεται και στα δύο.</string>
+    <string name="edit_launch_options_not_saved">Δεν ήταν δυνατή η αποθήκευση των επιλογών εκκίνησης στο Steam. Δοκιμάστε ξανά.</string>
+    <string name="edit_launch_options_desktop">Το Steam μπορεί να είναι ανοιχτό στη συνεδρία επιφάνειας εργασίας. Αλλάξτε τις επιλογές εκκίνησης από τις Ιδιότητές του ή κλείστε πρώτα τη συνεδρία.</string>
     <string name="edit_artwork">Γραφικά</string>
     <string name="edit_other_exe">Άλλο exe…</string>
     <string name="edit_remove">Κατάργηση</string>

@@ -651,6 +651,7 @@
     <string name="hud_size_pill">पिल</string>
     <string name="hud_size_minimal">मिनिमल</string>
     <string name="hud_size_mega">मेगा</string>
+    <string name="hud_size_strip">पट्टी</string>
     <string name="hud_locked">जगह पर लॉक करें</string>
     <string name="hud_locked_hint">HUD को खिसकाने के लिए उसे ड्रैग करें; देर तक दबाने से वह लॉक या अनलॉक होता है। लॉक रहने पर भी उसके नीचे के ऑन-स्क्रीन कंट्रोल काम करते रहते हैं।</string>
     <string name="hud_group_look">लुक</string>
@@ -701,7 +702,6 @@
     <string name="hud_export_failed">HUD रिपोर्ट सेव नहीं हो सकी।</string>
     <string name="hud_reset">HUD सेटिंग रीसेट करें</string>
     <string name="hud_reset_button">रीसेट करें</string>
-    <string name="hud_credit">The412Banner का FusionHUD, github.com/The412Banner/FusionHUD (GPL-3.0)।</string>
     <string name="drawer_scaling">स्केलिंग मोड</string>
     <string name="drawer_scaling_sharpness">स्केलिंग शार्पनेस</string>
     <string name="drawer_effects">स्क्रीन इफ़ेक्ट</string>
@@ -1699,6 +1699,8 @@
     <string name="fm_accept">स्वीकार करें</string>
     <string name="fm_decline">अस्वीकार करें</string>
     <string name="fm_drive_not_readable">%1$s माउंट है लेकिन अभी पढ़ा नहीं जा सकता</string>
+    <string name="fm_drive_access_title">%1$s तक पहुँच दें</string>
+    <string name="fm_drive_access_text">Android, DroidDeck को यह ड्राइव दिखाता है पर पढ़ने नहीं देता। DroidDeck के लिए सभी फ़ाइलों का ऐक्सेस चालू करें, फिर वापस आएँ।</string>
     <string name="fm_list_view">लिस्ट व्यू</string>
     <string name="fm_grid_view">ग्रिड व्यू</string>
     <string name="fm_search">सर्च</string>
@@ -1800,7 +1802,7 @@
     <string name="flatpakmgr_not_ready">पहले Flatpak सेट करें</string>
     <string name="flatpakmgr_starting">शुरू हो रहा है</string>
     <string name="flatpakmgr_exit_status">Flatpak status %1$d के साथ बंद हुआ</string>
-    <string name="flatpakmgr_wrong_arch">%1$s %2$s के लिए बना है, पर यहाँ Flatpak ऐप ARM64 के लिए बने होने चाहिए। इसके बजाय ऐप का AppImage इस्तेमाल करें; DroidDeck x86 AppImage को FEX से चलाता है।</string>
+    <string name="flatpakmgr_wrong_arch">%1$s %2$s के लिए बना है, जिसे DroidDeck नहीं चला सकता। यहाँ Flatpak ऐप ARM64 या x86_64 के लिए बने होने चाहिए।</string>
     <string name="flatpakmgr_installing">%1$s इंस्टॉल हो रहा है</string>
     <string name="flatpakmgr_updating">%1$s अपडेट हो रहा है</string>
     <string name="flatpakmgr_removing">%1$s हटाया जा रहा है</string>
@@ -2380,6 +2382,9 @@
     <string name="edit_target">टार्गेट</string>
     <string name="edit_start_in">यहां शुरू करें</string>
     <string name="edit_launch_options">लॉन्च विकल्प</string>
+    <string name="edit_launch_options_steam_hint">Steam की Properties के साथ साझा: किसी एक जगह किया गया बदलाव दोनों में दिखता है।</string>
+    <string name="edit_launch_options_not_saved">लॉन्च विकल्प Steam में सहेजे नहीं जा सके। फिर से कोशिश करें।</string>
+    <string name="edit_launch_options_desktop">Steam डेस्कटॉप सेशन में खुला हो सकता है। लॉन्च विकल्प उसकी Properties में बदलें, या पहले सेशन बंद करें।</string>
     <string name="edit_artwork">आर्टवर्क</string>
     <string name="edit_other_exe">दूसरा exe…</string>
     <string name="edit_remove">हटाएं</string>

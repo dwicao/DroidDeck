@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Kapszula</string>
     <string name="hud_size_minimal">Minimális</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Sáv</string>
     <string name="hud_locked">Rögzítés a helyén</string>
     <string name="hud_locked_hint">Húzd a HUD-ot az áthelyezéshez; hosszú nyomással rögzítheted vagy feloldhatod. Rögzítve is működnek az alatta lévő képernyős vezérlők.</string>
     <string name="hud_group_look">Megjelenés</string>
@@ -701,7 +702,6 @@
     <string name="hud_export_failed">Nem sikerült menteni a HUD-jelentést.</string>
     <string name="hud_reset">HUD-beállítások visszaállítása</string>
     <string name="hud_reset_button">Visszaállítás</string>
-    <string name="hud_credit">FusionHUD, készítette: The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Méretezési mód</string>
     <string name="drawer_scaling_sharpness">Méretezési élesség</string>
     <string name="drawer_effects">Képernyőeffektek</string>
@@ -1699,6 +1699,8 @@
     <string name="fm_accept">Elfogadom</string>
     <string name="fm_decline">Elutasítom</string>
     <string name="fm_drive_not_readable">A %1$s csatolva van, de jelenleg nem olvasható</string>
+    <string name="fm_drive_access_title">Hozzáférés engedélyezése: %1$s</string>
+    <string name="fm_drive_access_text">Az Android látni engedi a DroidDecknek ezt a meghajtót, de olvasni nem. Kapcsold be a DroidDecknél az Összes fájlhoz való hozzáférést, majd gyere vissza.</string>
     <string name="fm_list_view">Listanézet</string>
     <string name="fm_grid_view">Rácsnézet</string>
     <string name="fm_search">Keresés</string>
@@ -1800,7 +1802,7 @@
     <string name="flatpakmgr_not_ready">Előbb állítsa be a Flatpakot</string>
     <string name="flatpakmgr_starting">Indítás</string>
     <string name="flatpakmgr_exit_status">A Flatpak %1$d állapotkóddal lépett ki</string>
-    <string name="flatpakmgr_wrong_arch">A(z) %1$s %2$s rendszerre készült, de az itteni Flatpak-alkalmazásoknak ARM64-re kell készülniük. Használd inkább az alkalmazás AppImage-ét; a DroidDeck az x86 AppImage-eket FEX-en keresztül futtatja.</string>
+    <string name="flatpakmgr_wrong_arch">A(z) %1$s %2$s rendszerre készült, ezt a DroidDeck nem tudja futtatni. Az itteni Flatpak-alkalmazásoknak ARM64- vagy x86_64-változat kell.</string>
     <string name="flatpakmgr_installing">%1$s telepítése</string>
     <string name="flatpakmgr_updating">%1$s frissítése</string>
     <string name="flatpakmgr_removing">%1$s eltávolítása</string>
@@ -2380,6 +2382,9 @@
     <string name="edit_target">Cél</string>
     <string name="edit_start_in">Indítás innen</string>
     <string name="edit_launch_options">Indítási beállítások</string>
+    <string name="edit_launch_options_steam_hint">Közös a Steam Tulajdonságaival: az egyik helyen végzett módosítás mindkettőben megjelenik.</string>
+    <string name="edit_launch_options_not_saved">Az indítási beállításokat nem sikerült menteni a Steambe. Próbáld újra.</string>
+    <string name="edit_launch_options_desktop">Lehet, hogy a Steam nyitva van az asztali munkamenetben. Módosítsd az indítási beállításokat a Tulajdonságaiban, vagy előbb zárd be a munkamenetet.</string>
     <string name="edit_artwork">Illusztráció</string>
     <string name="edit_other_exe">Másik exe…</string>
     <string name="edit_remove">Eltávolítás</string>

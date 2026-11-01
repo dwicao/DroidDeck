@@ -651,6 +651,7 @@
     <string name="hud_size_pill">Hap</string>
     <string name="hud_size_minimal">Minimal</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Şerit</string>
     <string name="hud_locked">Yerinde kilitle</string>
     <string name="hud_locked_hint">Taşımak için HUD\'u sürükleyin; uzun basmak onu kilitler veya kilidini açar. Kilitliyken altındaki ekran kontrolleri çalışmaya devam eder.</string>
     <string name="hud_group_look">Görünüm</string>
@@ -701,7 +702,6 @@
     <string name="hud_export_failed">HUD raporu kaydedilemedi.</string>
     <string name="hud_reset">HUD ayarlarını sıfırla</string>
     <string name="hud_reset_button">Sıfırla</string>
-    <string name="hud_credit">FusionHUD, yapımcı: The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Ölçekleme modu</string>
     <string name="drawer_scaling_sharpness">Ölçekleme keskinliği</string>
     <string name="drawer_effects">Ekran efektleri</string>
@@ -1691,6 +1691,8 @@
     <string name="fm_accept">Kabul et</string>
     <string name="fm_decline">Reddet</string>
     <string name="fm_drive_not_readable">%1$s bağlı ancak şu anda okunamıyor</string>
+    <string name="fm_drive_access_title">%1$s erişimine izin ver</string>
+    <string name="fm_drive_access_text">Android, DroidDeck\'in bu sürücüyü görmesine izin veriyor ama okumasına izin vermiyor. DroidDeck için Tüm dosyalara erişimi açın, sonra geri dönün.</string>
     <string name="fm_list_view">Liste görünümü</string>
     <string name="fm_grid_view">Izgara görünümü</string>
     <string name="fm_search">Ara</string>
@@ -1792,7 +1794,7 @@
     <string name="flatpakmgr_not_ready">Önce Flatpak\'i kurun</string>
     <string name="flatpakmgr_starting">Başlatılıyor</string>
     <string name="flatpakmgr_exit_status">Flatpak %1$d durum koduyla çıktı</string>
-    <string name="flatpakmgr_wrong_arch">%1$s %2$s için derlenmiş, ancak buradaki Flatpak uygulamaları ARM64 için derlenmiş olmalı. Bunun yerine uygulamanın AppImage dosyasını kullanın; DroidDeck x86 AppImage dosyalarını FEX ile çalıştırır.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s, DroidDeck\'in çalıştıramadığı %2$s için derlenmiş. Buradaki Flatpak uygulamalarının ARM64 veya x86_64 sürümü olmalı.</string>
     <string name="flatpakmgr_installing">%1$s yükleniyor</string>
     <string name="flatpakmgr_updating">%1$s güncelleniyor</string>
     <string name="flatpakmgr_removing">%1$s kaldırılıyor</string>
@@ -2369,6 +2371,9 @@
     <string name="edit_target">Hedef</string>
     <string name="edit_start_in">Başlangıç yeri</string>
     <string name="edit_launch_options">Başlatma seçenekleri</string>
+    <string name="edit_launch_options_steam_hint">Steam Özellikleri ile ortaktır: birinde yapılan değişiklik ikisinde de görünür.</string>
+    <string name="edit_launch_options_not_saved">Başlatma seçenekleri Steam\'e kaydedilemedi. Tekrar deneyin.</string>
+    <string name="edit_launch_options_desktop">Steam masaüstü oturumunda açık olabilir. Başlatma seçeneklerini Steam Özellikleri\'nden değiştirin veya önce oturumu kapatın.</string>
     <string name="edit_artwork">Görsel</string>
     <string name="edit_other_exe">Diğer exe…</string>
     <string name="edit_remove">Kaldır</string>

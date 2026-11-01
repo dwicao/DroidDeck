@@ -655,6 +655,7 @@
     <string name="hud_size_pill">Pilulka</string>
     <string name="hud_size_minimal">Minimální</string>
     <string name="hud_size_mega">Mega</string>
+    <string name="hud_size_strip">Lišta</string>
     <string name="hud_locked">Zamknout na místě</string>
     <string name="hud_locked_hint">Přetažením HUD přesunete; dlouhým stiskem ho zamknete nebo odemknete. Když je zamknutý, ovládací prvky na obrazovce pod ním dál fungují.</string>
     <string name="hud_group_look">Vzhled</string>
@@ -705,7 +706,6 @@
     <string name="hud_export_failed">Zprávu HUD se nepodařilo uložit.</string>
     <string name="hud_reset">Obnovit nastavení HUD</string>
     <string name="hud_reset_button">Obnovit</string>
-    <string name="hud_credit">FusionHUD od The412Banner, github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">Režim škálování</string>
     <string name="drawer_scaling_sharpness">Ostrost škálování</string>
     <string name="drawer_effects">Efekty obrazovky</string>
@@ -1741,6 +1741,8 @@
     <string name="fm_accept">Přijmout</string>
     <string name="fm_decline">Odmítnout</string>
     <string name="fm_drive_not_readable">%1$s je připojeno, ale momentálně není čitelné</string>
+    <string name="fm_drive_access_title">Povolit přístup k %1$s</string>
+    <string name="fm_drive_access_text">Android umožňuje aplikaci DroidDeck tento disk vidět, ale ne číst. Zapněte pro DroidDeck Přístup ke všem souborům a pak se vraťte.</string>
     <string name="fm_list_view">Zobrazení seznamu</string>
     <string name="fm_grid_view">Zobrazení mřížky</string>
     <string name="fm_search">Hledat</string>
@@ -1846,7 +1848,7 @@
     <string name="flatpakmgr_not_ready">Nejprve nastavte Flatpak</string>
     <string name="flatpakmgr_starting">Spouštění</string>
     <string name="flatpakmgr_exit_status">Flatpak skončil s návratovým kódem %1$d</string>
-    <string name="flatpakmgr_wrong_arch">%1$s je sestaveno pro %2$s, ale aplikace Flatpak zde musí být pro ARM64. Použijte AppImage aplikace; DroidDeck spouští x86 AppImage přes FEX.</string>
+    <string name="flatpakmgr_wrong_arch">%1$s je sestaveno pro %2$s, které DroidDeck neumí spustit. Aplikace Flatpak zde potřebují verzi pro ARM64 nebo x86_64.</string>
     <string name="flatpakmgr_installing">Instalování %1$s</string>
     <string name="flatpakmgr_updating">Aktualizování %1$s</string>
     <string name="flatpakmgr_removing">Odstraňování %1$s</string>
@@ -2426,6 +2428,9 @@
     <string name="edit_target">Cíl</string>
     <string name="edit_start_in">Spustit v</string>
     <string name="edit_launch_options">Možnosti spuštění</string>
+    <string name="edit_launch_options_steam_hint">Sdíleno s Vlastnostmi ve Steamu: změna na jednom místě se projeví na obou.</string>
+    <string name="edit_launch_options_not_saved">Možnosti spuštění se nepodařilo uložit do Steamu. Zkuste to znovu.</string>
+    <string name="edit_launch_options_desktop">Steam může být otevřený v relaci Plochy. Změňte možnosti spuštění v jeho Vlastnostech, nebo nejdřív relaci ukončete.</string>
     <string name="edit_artwork">Grafika</string>
     <string name="edit_other_exe">Jiný exe…</string>
     <string name="edit_remove">Odstranit</string>

@@ -659,6 +659,7 @@
     <string name="hud_size_pill">كبسولة</string>
     <string name="hud_size_minimal">مصغّر</string>
     <string name="hud_size_mega">ضخم</string>
+    <string name="hud_size_strip">شريط</string>
     <string name="hud_locked">تثبيت في مكانه</string>
     <string name="hud_locked_hint">اسحب HUD لتحريكه؛ والضغط مطولًا يثبّته أو يلغي تثبيته. أثناء تثبيته، تظل عناصر التحكم على الشاشة الموجودة تحته تعمل.</string>
     <string name="hud_group_look">المظهر</string>
@@ -709,7 +710,6 @@
     <string name="hud_export_failed">تعذّر حفظ تقرير HUD.</string>
     <string name="hud_reset">إعادة ضبط إعدادات HUD</string>
     <string name="hud_reset_button">إعادة ضبط</string>
-    <string name="hud_credit">FusionHUD من The412Banner، github.com/The412Banner/FusionHUD (GPL-3.0).</string>
     <string name="drawer_scaling">وضع التحجيم</string>
     <string name="drawer_scaling_sharpness">حدة التحجيم</string>
     <string name="drawer_effects">مؤثرات الشاشة</string>
@@ -1783,6 +1783,8 @@
     <string name="fm_accept">موافق</string>
     <string name="fm_decline">رفض</string>
     <string name="fm_drive_not_readable">تم تركيب %1$s لكن تتعذّر قراءته حاليًا</string>
+    <string name="fm_drive_access_title">السماح بالوصول إلى %1$s</string>
+    <string name="fm_drive_access_text">يتيح Android لتطبيق DroidDeck رؤية محرك الأقراص هذا دون قراءته. فعّل الوصول إلى جميع الملفات لتطبيق DroidDeck ثم عُد.</string>
     <string name="fm_list_view">عرض القائمة</string>
     <string name="fm_grid_view">عرض الشبكة</string>
     <string name="fm_search">بحث</string>
@@ -1892,7 +1894,7 @@
     <string name="flatpakmgr_not_ready">أعِدّ Flatpak أولاً</string>
     <string name="flatpakmgr_starting">جارٍ البدء</string>
     <string name="flatpakmgr_exit_status">خرج Flatpak بالحالة %1$d</string>
-    <string name="flatpakmgr_wrong_arch">تم بناء %1$s لمعمارية %2$s، لكن تطبيقات Flatpak هنا يجب أن تكون لمعمارية ARM64. استخدم ملف AppImage للتطبيق بدلًا من ذلك؛ يشغّل DroidDeck ملفات AppImage لمعمارية x86 عبر FEX.</string>
+    <string name="flatpakmgr_wrong_arch">تم بناء %1$s لمعمارية %2$s، ولا يستطيع DroidDeck تشغيلها. تحتاج تطبيقات Flatpak هنا إلى إصدار لمعمارية ARM64 أو x86_64.</string>
     <string name="flatpakmgr_installing">جارٍ تثبيت %1$s</string>
     <string name="flatpakmgr_updating">جارٍ تحديث %1$s</string>
     <string name="flatpakmgr_removing">جارٍ إزالة %1$s</string>
@@ -2472,6 +2474,9 @@
     <string name="edit_target">الهدف</string>
     <string name="edit_start_in">بدء التشغيل في</string>
     <string name="edit_launch_options">خيارات التشغيل</string>
+    <string name="edit_launch_options_steam_hint">مشتركة مع خصائص Steam: أي تغيير في أحدهما يظهر في كليهما.</string>
+    <string name="edit_launch_options_not_saved">تعذّر حفظ خيارات التشغيل في Steam. حاول مرة أخرى.</string>
+    <string name="edit_launch_options_desktop">قد يكون Steam مفتوحًا في جلسة سطح المكتب. غيّر خيارات التشغيل من خصائصه، أو أغلق الجلسة أولًا.</string>
     <string name="edit_artwork">الصور الفنية</string>
     <string name="edit_other_exe">ملف exe آخر…</string>
     <string name="edit_remove">إزالة</string>
