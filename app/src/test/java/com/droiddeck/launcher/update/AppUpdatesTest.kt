@@ -516,7 +516,9 @@ class AppUpdatesTest {
         assertFalse(context.getSharedPreferences("app_updates", 0).contains("channel"))
 
         val inferred = AppUpdates.follow(context, catalog, installed)
-        assertEquals(Channel.NIGHTLY, inferred.channel)
+        // An uncatalogued commit is not proof of preview membership: it stays
+        // on Stable (see anUncataloguedNewerBuildStaysStableForNow).
+        assertEquals(Channel.STABLE, inferred.channel)
         assertEquals(provisional.sourceId, inferred.sourceId)
         assertEquals(inferred, AppUpdates.follow(context, null, installed))
     }

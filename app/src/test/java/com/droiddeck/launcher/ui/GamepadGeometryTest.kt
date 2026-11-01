@@ -58,9 +58,12 @@ class GamepadGeometryTest {
     }
 
     @Test fun everyControlIsPlacedAndPanelsOnlyWhenTall() {
+        // Back paddles are placed only by the portrait-dock path; the deck
+        // paths do not show L4/L5/R5/R4 yet.
+        val paddles = setOf(Slot.L4, Slot.L5, Slot.R5, Slot.R4)
         for (panel in panels) {
             val tall = GamepadGeometry.tall(panel.width.toFloat(), panel.controlsHeight.toFloat())
-            val expected = Slot.values().toSet() - if (tall) emptySet() else setOf(Slot.PANELS)
+            val expected = Slot.values().toSet() - paddles - if (tall) emptySet() else setOf(Slot.PANELS)
             assertEquals(panel.name, expected, boxes(panel).keys)
         }
     }
