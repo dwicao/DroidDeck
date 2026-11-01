@@ -1232,7 +1232,7 @@ class SessionService : Service() {
             steamLibraryMounts = steamLibraryMounts + (usb.guest to usb.host)
         }
         val gamesLibraries = listOfNotNull(usb) + GameStorage.gamesFolderLibraries(this)
-        val privateMounted = ArrayList<File>()
+        val privateMounted = ArrayList<Pair<File, String>>()
         if (gamesLibraries.isNotEmpty()) {
             var room = if (ProotFastPath.enabled(this)) {
                 ProotFastPath.MAX_BINDS - LinuxRuntime.binds(this, sessionRoot, runtimeDir, LinuxRuntime.sharedStorage(this), binds).size
@@ -1252,7 +1252,7 @@ class SessionService : Service() {
                     }
                     binds.addAll(extra)
                     room -= extra.size
-                    privateMounted.add(games.host)
+                    privateMounted.add(games.host to games.guest)
                     libraries.add(games.guest to games.label)
                     Log.i(TAG, "steam library: ${games.host} -> ${games.guest} (\"${games.label}\")")
                 } catch (e: Exception) {
@@ -1287,7 +1287,7 @@ class SessionService : Service() {
                     samePath(it.host, extra.host) && '"' !in it.guest && '\\' !in it.guest
                 }
                 if (owned != null) {
-                    if (privateMounted.none { samePath(it, extra.host) }) {
+                    if (privateMounted.none { (h, g) -> samePath(h, extra.host) && g == owned.guest }) {
                         try {
                             val privateBinds = SecondaryLibrary.binds(filesDir, extra.host, listOf(owned.guest)).drop(1)
                             if (privateBinds.size > room) {
@@ -1296,7 +1296,7 @@ class SessionService : Service() {
                             }
                             binds.addAll(privateBinds)
                             room -= privateBinds.size
-                            privateMounted.add(extra.host)
+                            privateMounted.add(extra.host to owned.guest)
                         } catch (e: Exception) {
                             Log.w(TAG, "moved steam library: ${extra.host} private directories could not be prepared", e)
                             continue
