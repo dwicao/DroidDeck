@@ -40,6 +40,8 @@ class App : Application() {
             process == "$packageName:shortcuts_sync") return
         CrashHandler.install(this)
         com.droiddeck.launcher.core.SteamIntegration.syncShortcutsListing(this)
+        // Optional: rumble for Razer Kishi pads over USB. Drop this line (and session/razer) to leave it out.
+        com.droiddeck.launcher.session.RumbleProviders.register(com.droiddeck.launcher.session.razer.RazerKishiRumble)
         com.droiddeck.launcher.session.QuestExperimental.initialize(this)
         com.droiddeck.launcher.session.SessionPrefs.applyNtsyncDefault(this)
         com.droiddeck.launcher.session.SessionPrefs.settleGpuDriverMode(this)
