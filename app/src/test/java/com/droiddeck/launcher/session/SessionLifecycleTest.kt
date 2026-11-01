@@ -195,8 +195,8 @@ class SessionLifecycleTest {
         }
         try {
             SessionService::class.java.getDeclaredMethod(
-                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
-            ).apply { isAccessible = true }.invoke(service.get(), -1, 0)
+                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Function0::class.java,
+            ).apply { isAccessible = true }.invoke(service.get(), -1, 0, {})
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(notified)
             assertEquals(-1, notifiedStatus)
@@ -248,8 +248,8 @@ class SessionLifecycleTest {
         }
         try {
             SessionService::class.java.getDeclaredMethod(
-                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
-            ).apply { isAccessible = true }.invoke(service.get(), 0, 0)
+                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Function0::class.java,
+            ).apply { isAccessible = true }.invoke(service.get(), 0, 0, {})
             assertTrue(SessionState.stopping)
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(notified)
@@ -268,8 +268,8 @@ class SessionLifecycleTest {
             SessionService::class.java.getDeclaredField("sessionGen")
                 .apply { isAccessible = true }.setInt(service.get(), 1)
             SessionService::class.java.getDeclaredMethod(
-                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType,
-            ).apply { isAccessible = true }.invoke(service.get(), 0, 0)
+                "finishSessionStop", Int::class.javaPrimitiveType, Int::class.javaPrimitiveType, Function0::class.java,
+            ).apply { isAccessible = true }.invoke(service.get(), 0, 0, {})
             shadowOf(Looper.getMainLooper()).idle()
             assertTrue(SessionState.stopping)
             assertFalse(notified)

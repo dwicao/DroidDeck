@@ -2118,7 +2118,6 @@ class SessionService : Service() {
         syncWatcher = null
         val process = sessionProcess
         sessionProcess = null
-        val prootPid = process?.pid ?: -1
         val auxiliary = synchronized(auxiliaryProcessesLock) {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
         }
@@ -2128,14 +2127,6 @@ class SessionService : Service() {
         if (ended != null) {
             VacDiagnostics.snapshot(this, ended)
         }
-        components.reversed().forEach {
-            try {
-                it.stop()
-            } catch (e: Exception) {
-                Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
-            }
-        }
-        components.clear()
         val collectEnded = {
             if (ended != null) Thread({ collectSessionArtifacts(ended, endedArch) }, "session-collect").start()
         }
@@ -2143,9 +2134,20 @@ class SessionService : Service() {
         com.droiddeck.launcher.input.SteamTouchDevice.release()
         val steamClientMayRun = SessionState.mode == MODE_STEAM || SessionState.mode == MODE_DESKTOP
         val finishAfterTeardown: () -> Unit = {
-            if (prootPid > 1 || auxiliary.isNotEmpty()) {
-                Thread({
+            // upr-671: teardown must wait for a concurrent startup to release the
+            // session work gate instead of racing it. One named worker keeps the
+            // teardown observable (session-teardown) in every stop shape.
+            Thread({
+                synchronized(sessionWorkLock) {
                     try {
+                        components.reversed().forEach {
+                            try {
+                                it.stop()
+                            } catch (e: Exception) {
+                                Log.w(TAG, "stopping ${it.javaClass.simpleName}", e)
+                            }
+                        }
+                        components.clear()
                         if (process != null && steamClientMayRun) askSteamToExit(process)
                         com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                         auxiliary.forEach { (pid, started) -> teardown(pid, started) }
@@ -2156,19 +2158,8 @@ class SessionService : Service() {
                         finishSessionStop(status, stoppedGen, collectEnded)
                         if (launcherEnded) importLauncherGames()
                     }
-                }, "session-teardown").start()
-            } else {
-                Thread({
-                    try {
-                        com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
-                    } catch (e: Throwable) {
-                        if (e is InterruptedException) Thread.currentThread().interrupt()
-                    } finally {
-                        finishSessionStop(status, stoppedGen, collectEnded)
-                        if (launcherEnded) importLauncherGames()
-                    }
-                }, "gog-session-stop").start()
-            }
+                }
+            }, "session-teardown").start()
         }
         acquireLocks()
         if (controller != null) controller.closeAndResume(finishAfterTeardown) else finishAfterTeardown()
