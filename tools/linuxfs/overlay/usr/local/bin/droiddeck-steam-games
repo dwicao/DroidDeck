@@ -627,7 +627,7 @@ def route(steam_root, acct, games):
         appid = candidates.get(folder, candidates.get(legacy_path(folder)))
         stamp = source_stamp(game)
         recorded = sources.get(folder, sources.get(legacy_path(folder)))
-        current = stamp is not None and recorded in (stamp, [stamp[0], legacy_path(stamp[1])] + stamp[2:])
+        current = stamp is not None and stamp_matches(recorded, stamp)
         named = isinstance(appid, int) and 0 < appid < 0x80000000 and appid != SPACEWAR
         try:
             release(steam_root, game, lambda old: old == SPACEWAR or (current and named and old != appid),
