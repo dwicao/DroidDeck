@@ -57,6 +57,8 @@ class SessionDisplayTest {
         assertEquals(1376, SessionDisplay.unfoldedGameHeight(2448, 1848))
         assertEquals(1038, SessionDisplay.unfoldedGameHeight(1848, 2448))
         assertEquals(864, SessionDisplay.unfoldedGameHeight(1920, 1080))
+    }
+
     @Test fun unfoldedTheGameKeepsItsShapeAcrossTheWidthInAtMostEightyPercent() {
         assertEquals(2448 to 1376, SessionDisplay.unfoldedGameSize(2448, 1848, SessionDisplay.FOLDED_16X9))
         assertEquals(1848 to 1038, SessionDisplay.unfoldedGameSize(1848, 2448, SessionDisplay.FOLDED_16X9))
