@@ -14,6 +14,7 @@ void droiddeck_log(const char *tag, const char *fmt, ...) {
 }
 #include "vk_loader.h"
 struct vk_api g_vk;
+void blendp_forget_image(VkImage image) { (void)image; }
 #include "effects_chain.c"
 
 enum { FXAA = 1, TOON = 2, COLOR = 4, CAS = 8, HDR = 16, NTSC = 32, CRT = 64, DEBAND = 128 };

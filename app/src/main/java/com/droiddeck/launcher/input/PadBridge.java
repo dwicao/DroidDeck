@@ -75,6 +75,7 @@ public final class PadBridge {
     private boolean backQamAxesBlocked;
     private final java.util.Set<Runnable> backQamWrites = new java.util.HashSet<>();
     private long backQamDelayMs, backQamWriteAt;
+    private boolean mappedQamPressed;
     private boolean qamChordActive;
     private int chordButton = -1;
     private boolean chordButtonPressed;
@@ -557,6 +558,14 @@ public final class PadBridge {
         else publish();
     }
 
+    public synchronized void setMappedQamPressed(boolean pressed) {
+        if (!builtinPad || mappedQamPressed == pressed) return;
+        boolean qamStarted = pressed && !systemQamPressed;
+        mappedQamPressed = pressed;
+        if (qamStarted && !nativeQam()) startChord(PadState.A);
+        else publish();
+    }
+
     public synchronized void releaseAll() {
         homeGuidePressed = false;
         homeGuideSlot = -1;
@@ -564,6 +573,7 @@ public final class PadBridge {
         routedTouch.clear();
         backQamPressed = false;
         releaseBackPaddles();
+        mappedQamPressed = false;
         clearPlayerState(0);
         publish();
         for (int slot = 1; slot < SLOTS; slot++) {
@@ -941,7 +951,7 @@ public final class PadBridge {
             return;
         }
         boolean guide = systemGuidePressed || qamChordActive || homeGuidePressed;
-        boolean qam = nativeQam() && (systemQamPressed || qamTapPressed || backQamPressed);
+        boolean qam = nativeQam() && (systemQamPressed || mappedQamPressed || qamTapPressed || backQamPressed);
         if (!guide && !qam) {
             writePad(state);
             return;

@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.droiddeck.launcher.input.ControllerPrefs
+import com.droiddeck.launcher.input.HardwareButtonMapping
 import com.droiddeck.launcher.session.SessionPrefs
 
 class ControllerActions(
@@ -88,7 +89,17 @@ fun ColumnScope.ControllerRows(host: MenuHost, oscMode: String, c: ControllerPre
 }
 
 @Composable
-fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String) -> Unit, onReset: () -> Unit, onBack: () -> Unit) {
+fun ControllerMappingPage(
+    mapping: Map<String, String>,
+    hardwareBindings: List<HardwareButtonMapping.Binding>,
+    recording: Boolean,
+    onRecord: () -> Unit,
+    onHardwarePick: (HardwareButtonMapping.Binding, String) -> Unit,
+    onHardwareRemove: (HardwareButtonMapping.Binding) -> Unit,
+    onPick: (String, String) -> Unit,
+    onReset: () -> Unit,
+    onBack: () -> Unit,
+) {
     val host = rememberMenuHost()
     SettingsPage(
         host, title = stringResource(R.string.ctrl_mapping), eyebrow = stringResource(R.string.setup_controller),
@@ -97,6 +108,25 @@ fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String)
     ) {
         SettingsGroup(stringResource(R.string.shortcuts_title)) {
             PhysicalShortcutRows()
+        }
+        SettingsGroup(stringResource(R.string.ctrl_hardware_buttons)) {
+            ActionRow(
+                stringResource(R.string.ctrl_learn_button),
+                stringResource(if (recording) R.string.ctrl_press_button else R.string.ctrl_learn_hint),
+                stringResource(if (recording) R.string.common_cancel else R.string.ctrl_configure),
+                onRecord,
+            )
+            val hardwareTargets = ControllerPrefs.targets.filter { it.first != ControllerPrefs.OFF }
+                .map { (id, label) -> id to stringResource(label) }
+            hardwareBindings.forEachIndexed { index, binding ->
+                val label = if (binding.motionButton > 0) stringResource(
+                    R.string.ctrl_mouse_button, binding.deviceName, binding.motionButton,
+                ) else binding.label
+                ChoiceRow(host, "hardware-$index", label, null, hardwareTargets, binding.target) {
+                    onHardwarePick(binding, it)
+                }
+                ActionRow(label, null, stringResource(R.string.ctrl_remove_button), onClick = { onHardwareRemove(binding) })
+            }
         }
         SettingsGroup(stringResource(R.string.ctrl_onscreen_buttons)) {
             val targets = ControllerPrefs.targets.map { (id, label) -> id to stringResource(label) }
