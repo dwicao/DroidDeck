@@ -157,6 +157,7 @@ public final class Downloader {
         Identity identity = loadIdentity(destination, resume, expectedSha256);
         boolean speedChecked = sources.size() < 2;
         for (int i = 0; i < sources.size(); i++) {
+            if (Thread.currentThread().isInterrupted()) return false;
             String source = sources.get(i);
             if (isCancelled(cancelled)) return false;
             if (i > 0) Log.i(TAG, "retrying " + original + " via " + source);
@@ -171,6 +172,7 @@ public final class Downloader {
                 i = -1;
                 continue;
             }
+            if (Thread.currentThread().isInterrupted()) return false;
             if (outcome == Outcome.DONE) {
                 if (expectedSha256 != null) {
                     String actualSha256 = Hashes.sha256(destination);
@@ -329,6 +331,7 @@ public final class Downloader {
                 long startedAt = System.currentTimeMillis();
                 boolean watched = false;
                 for (int read = in.read(buffer); read > 0; read = in.read(buffer)) {
+                    if (Thread.currentThread().isInterrupted()) return Outcome.RETRY;
                     out.write(buffer, 0, read);
                     written += read;
                     if (isCancelled(cancelled)) return Outcome.CANCELLED;

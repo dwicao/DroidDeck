@@ -553,6 +553,8 @@ class FrontEndActivity : ComponentActivity() {
     private var adbPaired by mutableStateOf(false)
     private var memoryHud by mutableStateOf(SessionPrefs.MEMORY_HUD_OFF)
     private var backgroundAppLimit by mutableStateOf(com.droiddeck.launcher.core.BackgroundAppLimit.OFF)
+    private var bluetoothAllowed by mutableStateOf<Boolean?>(null)
+    private var allFilesAllowed by mutableStateOf<Boolean?>(null)
     private var showRoms by mutableStateOf(false)
     private var homeAppSelected by mutableStateOf(false)
     private var homeScreenEnabled by mutableStateOf(false)
@@ -1256,6 +1258,7 @@ class FrontEndActivity : ComponentActivity() {
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
+                        bluetoothAllowed = bluetoothAllowed, allFilesAllowed = allFilesAllowed,
                         steamGames = steamGames, steamGamesX64 = steamGamesX64, emulators = emulatorList, running = runningLabel,
                         frameGen = FrameGen.mode(this),
                         lossless = lossless,
@@ -1500,6 +1503,8 @@ class FrontEndActivity : ComponentActivity() {
                             SessionPrefs.setBackgroundAppLimit(this, limit); backgroundAppLimit = limit
                             if (limit == com.droiddeck.launcher.core.BackgroundAppLimit.OFF) com.droiddeck.launcher.core.BackgroundAppLimit.restoreAsync(this)
                         },
+                        onBluetoothAllowed = { askBluetooth() },
+                        onAllFilesAllowed = { com.droiddeck.launcher.core.AllFilesAccess.openSettings(this) },
                         onShareLogs = {
                             SessionLogShare.prepare(this, { SessionLogShare.latest(this) }) { zip ->
                                 if (zip == null) android.widget.Toast.makeText(this, R.string.main_no_logs_yet, android.widget.Toast.LENGTH_LONG).show()
@@ -1821,8 +1826,14 @@ class FrontEndActivity : ComponentActivity() {
         }
 
         val wanted = ArrayList<String>()
-        if (checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q
+            && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
             wanted.add(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && !SessionPrefs.bluetoothAsked(this)
+            && checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) != PackageManager.PERMISSION_GRANTED) {
+            wanted.add(Manifest.permission.BLUETOOTH_CONNECT)
+            SessionPrefs.setBluetoothAsked(this)
         }
         if (SessionPrefs.micEnabled(this) && !SessionPrefs.micAsked(this)
             && checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
@@ -1830,6 +1841,13 @@ class FrontEndActivity : ComponentActivity() {
             SessionPrefs.setMicAsked(this)
         }
         if (wanted.isNotEmpty()) requestPermissions(wanted.toTypedArray(), 1)
+        else if (!com.droiddeck.launcher.core.AllFilesAccess.granted() && !SessionPrefs.allFilesAsked(this)) {
+            Thread({
+                if (com.droiddeck.launcher.core.AllFilesAccess.usesSharedStorage(this)) runOnUiThread {
+                    if (com.droiddeck.launcher.core.AllFilesAccess.ask(this)) SessionPrefs.setAllFilesAsked(this)
+                }
+            }, "all-files-access").start()
+        }
         Thread({ com.droiddeck.launcher.stores.StoreAccounts.encryptAll(this) }, "store-credentials").start()
         if (!SessionState.running) Thread({
             com.droiddeck.launcher.session.LogMigration.run(this)
@@ -2013,6 +2031,26 @@ class FrontEndActivity : ComponentActivity() {
         super.onPause()
     }
 
+    private fun refreshPermissionRows() {
+        bluetoothAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
+            checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED else null
+        allFilesAllowed = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) com.droiddeck.launcher.core.AllFilesAccess.granted() else null
+    }
+
+    private fun askBluetooth() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+        val permission = Manifest.permission.BLUETOOTH_CONNECT
+        val granted = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+        if (granted || (SessionPrefs.bluetoothAsked(this) && !shouldShowRequestPermissionRationale(permission))) {
+            runCatching {
+                startActivity(Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS, android.net.Uri.parse("package:$packageName")))
+            }
+        } else {
+            SessionPrefs.setBluetoothAsked(this)
+            requestPermissions(arrayOf(permission), 3)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         compatLaunchVisible = true
@@ -2023,6 +2061,7 @@ class FrontEndActivity : ComponentActivity() {
         requestedOrientation = launcherOrientation
         SteamIntegration.syncShortcutsListing(this)
         refreshWifiDiscovery()
+        refreshPermissionRows()
         com.droiddeck.launcher.stores.StoresState.refresh(this)
         com.droiddeck.launcher.stores.StoresState.libraryListener = { refreshAddedGames(); refresh() }
         com.droiddeck.launcher.stores.battlenet.BattleNetClient.opener = { args -> openBattleNet(args) }

@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
@@ -70,6 +71,7 @@ public final class LinuxRuntimeInstaller {
         volatile Step step = Step.OTHER;
         volatile int percent = -1;
         volatile boolean ok;
+        volatile Thread worker;
         final boolean removal;
         boolean maintenance;
         Job(boolean removal, String stage) { this.removal = removal; this.stage = stage; }
@@ -126,6 +128,7 @@ public final class LinuxRuntimeInstaller {
             owner = running == null;
             if (owner) { running = new Job(false, context.getString(R.string.user_apps_starting)); removalError = null; }
             job = running;
+            if (owner) job.worker = Thread.currentThread();
             if (listener != null) job.listeners.add(listener);
         }
         if (!owner) return join(job, listener);
@@ -159,6 +162,12 @@ public final class LinuxRuntimeInstaller {
 
     public static boolean isBusy() {
         synchronized (JOB_LOCK) { return running != null; }
+    }
+
+    public static void cancelActiveOperation() {
+        synchronized (JOB_LOCK) {
+            if (running != null && running.worker != null) running.worker.interrupt();
+        }
     }
 
     public static boolean isRemoving() {
@@ -290,6 +299,7 @@ public final class LinuxRuntimeInstaller {
                 keepPartial = true;
                 return false;
             }
+            requireNotInterrupted();
 
             if (listener != null) listener.onProgress(Step.VERIFYING, context.getString(R.string.rtinst_verifying), -1);
             String actual = Hashes.sha256(archive);
@@ -308,6 +318,7 @@ public final class LinuxRuntimeInstaller {
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
+            requireNotInterrupted();
             FileUtils.writeString(new File(staging, VERSION_FILE), release.version);
 
             if (!discard(old, null)) {
@@ -317,6 +328,11 @@ public final class LinuxRuntimeInstaller {
             java.util.List<String> carryPaths = root.isDirectory()
                     ? RuntimeFileTree.existingUserPaths(root, staging) : java.util.Collections.emptyList();
             if (root.isDirectory() && !root.renameTo(old)) {
+                RuntimeFileTree.delete(staging, null);
+                return false;
+            }
+            if (Thread.currentThread().isInterrupted()) {
+                if (old.isDirectory()) old.renameTo(root);
                 RuntimeFileTree.delete(staging, null);
                 return false;
             }
@@ -347,7 +363,7 @@ public final class LinuxRuntimeInstaller {
                 return false;
             }
 
-            if (!staging.renameTo(root)) {
+            if (Thread.currentThread().isInterrupted() || !staging.renameTo(root)) {
                 if (old.isDirectory()) {
                     try {
                         RuntimeFileTree.carryBack(staging, old, carried);
@@ -541,6 +557,7 @@ public final class LinuxRuntimeInstaller {
              TarArchiveInputStream tar = new TarArchiveInputStream(in)) {
             TarArchiveEntry entry;
             while ((entry = tar.getNextTarEntry()) != null) {
+                requireNotInterrupted();
                 File file = ArchivePaths.inside(destination, entry.getName());
                 if (file == null) {
                     Log.w(TAG, "skipping entry outside the rootfs: " + entry.getName());
@@ -579,7 +596,10 @@ public final class LinuxRuntimeInstaller {
                     try (OutputStream out = new FileOutputStream(part)) {
                         byte[] buffer = new byte[1 << 16];
                         int read;
-                        while ((read = tar.read(buffer)) != -1) out.write(buffer, 0, read);
+                        while ((read = tar.read(buffer)) != -1) {
+                            requireNotInterrupted();
+                            out.write(buffer, 0, read);
+                        }
                     }
                     if ((entry.getMode() & 0111) != 0) part.setExecutable(true, false);
                     place(part, file);

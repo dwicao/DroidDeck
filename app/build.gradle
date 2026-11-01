@@ -134,7 +134,7 @@ def variantSuffixes = rootProject.file('tools/release/variants.txt').readLines()
 
 android {
     namespace 'com.droiddeck.launcher'
-    compileSdk 34
+    compileSdk 36
     ndkVersion project.findProperty('ndkVersion') ?: '27.3.13750724'
 
     defaultConfig {
