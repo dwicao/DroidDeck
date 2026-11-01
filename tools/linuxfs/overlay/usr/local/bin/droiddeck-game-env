@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 import hashlib
+from contextlib import nullcontext
 import json
 import os
 import re
@@ -733,10 +734,8 @@ EVALUATOR_SCRIPT = re.compile(r"(?:^|[\\/])evaluatorscript_[0-9]+\.vdf$", re.IGN
 
 
 def mark_install_scripts(command, env):
-    """The client is about to run a game's install scripts (iscriptevaluator.exe): mark every process
-    in them but a Vulkan runtime installer as already run first, so no redistributable installer
-    starts - on first launch the shared ones may still be downloading, and on ARM64 Proton the VC++
-    ones stop with an error."""
+    """Seed redistributables supplied by DroidDeck before Steam evaluates the game's install scripts.
+    Vulkan, Ubisoft Connect and EA app installers still need to run."""
     if not any(arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in command):
         return []
     root = env.get("BL_X64_STEAM_ROOT") or env.get("STEAM_COMPAT_CLIENT_INSTALL_PATH") or str(Path.home() / ".local/share/Steam")
@@ -1208,6 +1207,19 @@ def keep_artifacts(log, env, exe, budget=MEASURE_SECONDS):
 
 
 def start(launch, env, digest=None, after=None):
+    try:
+        prepare = nullcontext((launch, env))
+        if any(arg.lower().startswith("steam2ea://") or arg.lower().replace("\\", "/").endswith("iscriptevaluator.exe") for arg in launch[2:]):
+            ea = runpy.run_path(str(Path(__file__).with_name("droiddeck-ea")))
+            prepare = ea["prepare"](launch, env)
+        with prepare as (prepared, prepared_env):
+            return _start(prepared, prepared_env, digest, after)
+    except (RuntimeError, ValueError) as error:
+        print("droiddeck-game-env: %s" % error, file=sys.stderr)
+        return 1
+
+
+def _start(launch, env, digest, after):
     if after:
         process = subprocess.Popen(launch, env=env)
         try:
@@ -1626,6 +1638,9 @@ def main():
         except OSError:
             restore_after()
             raise
+    if isinstance(child, int):
+        restore_after()
+        return child
     status = follow(child, log)
     restore_after()
     if digest and status == 0:
