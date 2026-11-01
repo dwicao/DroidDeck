@@ -186,8 +186,8 @@ class AgentSecurityTest {
         File(AgentEnv.inbox(context).apply { mkdirs() }, "gamescope").writeText("test binary")
         AgentEnv.override(context, "gamescope")
 
-        val path = AgentEnv.beginSession(context).single { it.startsWith("PATH=") }.substringAfter('=')
-        assertEquals("/opt/droiddeck-agent/bin:" + LinuxRuntime.GUEST_PATH, path)
+        val path = AgentEnv.beginSession(context, "test-session").single { it.startsWith("PATH=") }.substringAfter('=')
+        assertEquals("/opt/droiddeck-agent/sessions/test-session/bin:" + LinuxRuntime.GUEST_PATH, path)
         assertTrue(path.split(':').contains("/usr/games"))
         assertTrue(path.split(':').contains("/usr/sbin"))
 
@@ -202,7 +202,7 @@ class AgentSecurityTest {
         File(AgentEnv.inbox(context).apply { mkdirs() }, "gamescope").writeText("test binary")
         AgentEnv.override(context, "gamescope")
 
-        assertEquals("PATH=/opt/droiddeck-agent/bin:/custom/next:/usr/games", AgentEnv.beginSession(context).last())
+        assertEquals("PATH=/opt/droiddeck-agent/sessions/test-session/bin:/custom/next:/usr/games", AgentEnv.beginSession(context, "test-session").last())
         AgentEnv.endSession(context)
         assertEquals(listOf("PATH=/custom/persistent"), AgentEnv.beginSession(context))
     }
