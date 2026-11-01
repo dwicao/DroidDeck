@@ -99,7 +99,7 @@ class FrontEndActivity : ComponentActivity() {
     private val components = ComponentsMenu(this, ui)
     private val decky = DeckyMenu(this, ui)
     private val updates = UpdatesMenu(this, ui)
-    private val protons = ProtonMenu(this, ui) { !busy && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null }
+    private val protons = ProtonMenu(this, ui) { !busy && saveBusy == null && flood == null && compatLaunch == null && pkgStage == null && components.compBusy == null }
 
     private var installed by mutableStateOf<String?>(null)
     private var flood by mutableStateOf<PendingFlood?>(null)
@@ -109,7 +109,12 @@ class FrontEndActivity : ComponentActivity() {
         val intent: Intent,
         val gameLinkRequest: Intent? = null,
     )
-    private class CompatLaunch(val intent: Intent, val loading: com.droiddeck.launcher.session.LoadingState, var menuInstall: Boolean)
+    private class CompatLaunch(
+        val intent: Intent,
+        val loading: com.droiddeck.launcher.session.LoadingState,
+        var menuInstall: Boolean,
+        val gameLinkRequest: Intent? = null,
+    )
     private var compatLaunch by mutableStateOf<CompatLaunch?>(null)
     private var compatFlood by mutableStateOf<androidx.compose.ui.graphics.Color?>(null)
     private var compatLaunchPoll: Runnable? = null
@@ -161,8 +166,6 @@ class FrontEndActivity : ComponentActivity() {
     private var orcaBusy by mutableStateOf(false)
     private var orcaStage by mutableStateOf<String?>(null)
     private var orcaError by mutableStateOf<String?>(null)
-    private var saveBusy: String? = null
-    private var onSavePicked: ((File) -> Unit)? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
     private var catalogLoading by mutableStateOf(false)
@@ -602,6 +605,10 @@ class FrontEndActivity : ComponentActivity() {
                 android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
                 return false
             }
+            SessionState.installing != null && !SessionState.running -> {
+                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                return false
+            }
             protons.protonBusyId != null || ProtonExtras.installInProgress -> {
                 android.widget.Toast.makeText(this, R.string.main_wait_proton_install, android.widget.Toast.LENGTH_SHORT).show()
                 return false
@@ -622,34 +629,34 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun startSessionActivity(intent: Intent, gameLinkRequest: Intent? = null): Boolean {
         val compat = protons.protonBusyId != null || ProtonExtras.installInProgress
-        if (compatLaunch != null || flood != null) return false
-        if (compat) {
-            if (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null) {
-                android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
-                return false
-            }
-            if (SessionState.installing != null && !SessionState.running) {
-                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
-                return false
-            }
-        } else {
-            if (SessionLaunchGate.shouldCheckBusyState(intent, SessionState.running) && !sessionLaunchAllowed()) return false
-            if (busy || LinuxRuntimeInstaller.isBusy()) {
-                android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
-                return false
-            }
-            if (SessionState.installing != null && !SessionState.running) {
-                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
-                return false
-            }
-            if (pkgStage != null) {
-                android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
-                return false
+        val checkBusy = SessionLaunchGate.shouldCheckBusyState(intent, SessionState.running)
+        if (checkBusy) {
+            if (compatLaunch != null) return false
+            when {
+                busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null -> {
+                    android.widget.Toast.makeText(this, R.string.main_wait_runtime, android.widget.Toast.LENGTH_SHORT).show()
+                    return false
+                }
+                SessionState.installing != null && !SessionState.running -> {
+                    android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                    return false
+                }
+                compat -> Unit
+                pkgStage != null -> {
+                    android.widget.Toast.makeText(this, R.string.main_wait_desktop_install, android.widget.Toast.LENGTH_SHORT).show()
+                    return false
+                }
             }
         }
+        if (flood != null) return false
         val from = com.droiddeck.launcher.ui.LaunchOrigin.take()
         if (from != null && !SessionState.running && com.droiddeck.launcher.ui.Motion.scale != 0f) {
             flood = PendingFlood(from, intent, gameLinkRequest)
+            return true
+        }
+        com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+        if (checkBusy && compat) {
+            waitForCompat(intent, gameLinkRequest = gameLinkRequest)
             return true
         }
         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
@@ -660,27 +667,12 @@ class FrontEndActivity : ComponentActivity() {
         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
         super.startActivity(intent)
         overridePendingTransition(R.anim.session_rise, R.anim.session_hold)
+        consumeGameLinkRequest(gameLinkRequest)
         return true
     }
 
-    private fun launchFlooded(f: PendingFlood) {
-        if (SessionState.running || !sessionLaunchAllowed() || busy || LinuxRuntimeInstaller.isBusy() ||
-            (SessionState.installing != null && !SessionState.running) ||
-            protons.protonBusyId != null || ProtonExtras.installInProgress || pkgStage != null) {
-            flood = null
-            floodProgress = 0f
-            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
-            if (!busy && !LinuxRuntimeInstaller.isBusy() && !(SessionState.installing != null && !SessionState.running) &&
-                (protons.protonBusyId != null || ProtonExtras.installInProgress)) {
-                compatFlood = com.droiddeck.launcher.ui.Themes.byId(theme).signal
-                waitForCompat(f.intent)
-            }
-            return
-        }
-        val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
-        super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
-        overridePendingTransition(0, 0)
-        f.gameLinkRequest?.let { request ->
+    private fun consumeGameLinkRequest(gameLinkRequest: Intent?) {
+        gameLinkRequest?.let { request ->
             if (intent === request) {
                 pendingGameLink = null
                 intent.data = null
@@ -690,11 +682,34 @@ class FrontEndActivity : ComponentActivity() {
         }
     }
 
-    private fun waitForCompat(next: Intent, menuInstall: Boolean = protons.protonBusyId != null) {
+    private fun launchFlooded(f: PendingFlood) {
+        if (SessionState.running || !sessionLaunchAllowed()) {
+            flood = null
+            floodProgress = 0f
+            com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
+            if (!SessionState.running && !busy && !LinuxRuntimeInstaller.isBusy() && saveBusy == null &&
+                !(SessionState.installing != null && !SessionState.running) && pkgStage == null &&
+                (protons.protonBusyId != null || ProtonExtras.installInProgress)) {
+                compatFlood = com.droiddeck.launcher.ui.Themes.byId(theme).signal
+                waitForCompat(f.intent, gameLinkRequest = f.gameLinkRequest)
+            }
+            return
+        }
+        val signal = com.droiddeck.launcher.ui.Themes.byId(theme).signal
+        super.startActivity(f.intent.putExtra(com.droiddeck.launcher.ui.EXTRA_FLOOD, signal.toArgb()))
+        overridePendingTransition(0, 0)
+        consumeGameLinkRequest(f.gameLinkRequest)
+    }
+
+    private fun waitForCompat(
+        next: Intent,
+        menuInstall: Boolean = protons.protonBusyId != null,
+        gameLinkRequest: Intent? = null,
+    ) {
         if (compatLaunch != null) return
         com.droiddeck.launcher.ui.LaunchOrigin.take()
         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
-        val waiting = CompatLaunch(Intent(next), com.droiddeck.launcher.session.LoadingState(this), menuInstall)
+        val waiting = CompatLaunch(Intent(next), com.droiddeck.launcher.session.LoadingState(this), menuInstall, gameLinkRequest)
         compatLaunch = waiting
         val poll = object : Runnable {
             override fun run() {
@@ -713,9 +728,9 @@ class FrontEndActivity : ComponentActivity() {
                 if (!compatLaunchVisible) { ui.postDelayed(this, 250); return }
                 val problem = protons.protonProblem.takeIf { waiting.menuInstall }
                 if (problem == null && (busy || LinuxRuntimeInstaller.isBusy() || saveBusy != null || (SessionState.installing != null && !SessionState.running) || pkgStage != null)) {
-                    waiting.loading.say(pkgStage ?: stage.takeIf { it.isNotBlank() } ?: getString(R.string.main_wait_runtime),
+                    waiting.loading.say(pkgStage ?: saveBusy ?: stage.takeIf { it.isNotBlank() } ?: getString(R.string.main_wait_runtime),
                         com.droiddeck.launcher.session.LoadingState.Topic.RUNTIME, readable = true)
-                    waiting.loading.percent = if (pkgStage != null) pkgPercent else percent
+                    waiting.loading.percent = if (pkgStage != null) pkgPercent else if (saveBusy != null) -1 else percent
                     waiting.loading.tick()
                     ui.postDelayed(this, 250)
                     return
@@ -724,7 +739,7 @@ class FrontEndActivity : ComponentActivity() {
                 if (problem != null) waiting.loading.showEnded(problem)
                 else {
                     compatLaunch = null
-                    startActivity(waiting.intent)
+                    startSessionActivity(waiting.intent, waiting.gameLinkRequest)
                 }
             }
         }
@@ -732,7 +747,10 @@ class FrontEndActivity : ComponentActivity() {
         poll.run()
     }
 
-    private fun cancelCompatLaunch() {
+    private fun cancelCompatLaunch() = cancelCompatLaunch(consumeRequest = true)
+
+    private fun cancelCompatLaunch(consumeRequest: Boolean) {
+        if (consumeRequest) consumeGameLinkRequest(compatLaunch?.gameLinkRequest)
         compatLaunchPoll?.let(ui::removeCallbacks)
         compatLaunchPoll = null
         compatLaunch = null
@@ -741,10 +759,11 @@ class FrontEndActivity : ComponentActivity() {
 
     private fun restoreCompatLaunch(state: Bundle) {
         savedIntent(state, KEY_COMPAT_LAUNCH)?.let { next ->
+            val request = intent.takeIf { state.getBoolean(KEY_COMPAT_GAME_LINK) }
             val problem = state.getString(KEY_COMPAT_PROBLEM)
-            if (problem == null) waitForCompat(next, state.getBoolean(KEY_COMPAT_MENU_INSTALL))
+            if (problem == null) waitForCompat(next, state.getBoolean(KEY_COMPAT_MENU_INSTALL), request)
             else compatLaunch = CompatLaunch(next,
-                com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false)
+                com.droiddeck.launcher.session.LoadingState(this).apply { showEnded(problem) }, false, request)
         }
     }
 
@@ -752,6 +771,7 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunch?.let {
             state.putParcelable(KEY_COMPAT_LAUNCH, it.intent)
             state.putBoolean(KEY_COMPAT_MENU_INSTALL, it.menuInstall)
+            state.putBoolean(KEY_COMPAT_GAME_LINK, it.gameLinkRequest != null)
             if (it.loading.ended) state.putString(KEY_COMPAT_PROBLEM, it.loading.step)
         }
     }
@@ -1138,7 +1158,7 @@ class FrontEndActivity : ComponentActivity() {
             syncDualPanel()
             android.widget.Toast.makeText(this, R.string.game_link_missing, android.widget.Toast.LENGTH_LONG).show()
         } else if (launchGame(game, returnHome = true, gameLinkRequest = request)) {
-            if (flood == null && intent === request) {
+            if (flood == null && compatLaunch == null && intent === request) {
                 pendingGameLink = null
                 intent.data = null
                 intent.action = Intent.ACTION_MAIN
@@ -1773,13 +1793,13 @@ class FrontEndActivity : ComponentActivity() {
                         com.droiddeck.launcher.ui.LaunchOrigin.flooding = null
                     }
                 }
-                androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch() }
+                androidx.activity.compose.BackHandler(compatLaunch != null) { cancelCompatLaunch(consumeRequest = true) }
                 compatLaunch?.loading?.let { loading ->
                     if (!loading.ended) com.droiddeck.launcher.ui.VeilRing()
                     com.droiddeck.launcher.ui.LoadingOverlay(
                         loading.step, loading.percent, loading.elapsed, getString(R.string.load_compat_hint), loading.ended,
                         loading.topic, loading.readable, title = getString(R.string.load_compat_title),
-                        onCancel = ::cancelCompatLaunch, onClose = ::cancelCompatLaunch,
+                        onCancel = { cancelCompatLaunch(consumeRequest = true) }, onClose = { cancelCompatLaunch(consumeRequest = true) },
                         flood = compatFlood, onFlooded = { compatFlood = null },
                     )
                 }
@@ -1904,7 +1924,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (compatLaunch != null) {
             if (event.keyCode == KeyEvent.KEYCODE_BACK || event.keyCode == KeyEvent.KEYCODE_BUTTON_B) {
-                if (event.action == KeyEvent.ACTION_UP) cancelCompatLaunch()
+                if (event.action == KeyEvent.ACTION_UP) cancelCompatLaunch(consumeRequest = true)
                 return true
             }
             if (!compatLaunch!!.loading.ended && event.keyCode !in listOf(
@@ -2115,6 +2135,7 @@ class FrontEndActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
         outState.putString(KEY_SAVE_PICKER_OWNER, savePickerOwner)
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
+        outState.putString(KEY_SAVE_PICKER_OWNER, savePickerOwner)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
         switchingTo?.let {
@@ -2133,7 +2154,7 @@ class FrontEndActivity : ComponentActivity() {
 
     override fun onDestroy() {
         if (isFinishing) LauncherJobs.abandonSavePick(savePickerOwner)
-        cancelCompatLaunch()
+        cancelCompatLaunch(consumeRequest = false)
         if (!SessionState.running) {
             dualSenseOutputBridge?.stop()
         }
@@ -2400,7 +2421,12 @@ class FrontEndActivity : ComponentActivity() {
             },
         )
         androidx.compose.runtime.LaunchedEffect(components.compDownloadRevision) { components.refreshComponents() }
-        androidx.compose.runtime.LaunchedEffect(protons.protonBusyId) { if (protons.protonBusyId == null) components.refreshComponents() }
+        androidx.compose.runtime.LaunchedEffect(protons.protonBusyId) {
+            if (protons.protonBusyId == null) {
+                components.refreshComponents()
+                protons.refreshProtons()
+            }
+        }
     }
 
     private fun refreshPackages() {
@@ -3226,6 +3252,7 @@ class FrontEndActivity : ComponentActivity() {
         private const val KEY_PENDING_SWITCH = "pending_switch"
         private const val KEY_COMPAT_LAUNCH = "compat_launch"
         private const val KEY_COMPAT_MENU_INSTALL = "compat_menu_install"
+        private const val KEY_COMPAT_GAME_LINK = "compat_game_link"
         private const val KEY_COMPAT_PROBLEM = "compat_problem"
         private const val KEY_SWITCHING_TO = "switching_to"
         private const val KEY_SWITCH_DEADLINE = "switch_deadline"
