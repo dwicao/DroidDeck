@@ -231,14 +231,6 @@ fun ControllerMappingPage(
     onReset: () -> Unit,
     onBack: () -> Unit,
 ) {
-fun DualSenseSettingsGroup(host: MenuHost, c: ControllerPrefs.Settings, a: ControllerActions) {
-    SettingsGroup(stringResource(R.string.ctrl_dualsense_group)) {
-        DualSenseControllerRows(host, c, a)
-    }
-}
-
-@Composable
-fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String) -> Unit, onReset: () -> Unit, onBack: () -> Unit) {
     val host = rememberMenuHost()
     SettingsPage(
         host, title = stringResource(R.string.ctrl_mapping), eyebrow = stringResource(R.string.setup_controller),
@@ -277,4 +269,31 @@ fun ControllerMappingPage(mapping: Map<String, String>, onPick: (String, String)
             ActionRow(stringResource(R.string.ctrl_reset_mapping), stringResource(R.string.ctrl_mapping_default), stringResource(R.string.ctrl_reset), onReset)
         }
     }
+}
+
+@Composable
+fun DualSenseSettingsGroup(host: MenuHost, c: ControllerPrefs.Settings, a: ControllerActions) {
+    SettingsGroup(stringResource(R.string.ctrl_dualsense_group)) {
+        DualSenseControllerRows(host, c, a)
+    }
+}
+
+@Composable
+fun ControllerMappingPage(
+    mapping: Map<String, String>,
+    onPick: (String, String) -> Unit,
+    onReset: () -> Unit,
+    onBack: () -> Unit,
+) {
+    ControllerMappingPage(
+        mapping = mapping,
+        hardwareBindings = emptyList(),
+        recording = false,
+        onRecord = {},
+        onHardwarePick = { _, _ -> },
+        onHardwareRemove = {},
+        onPick = onPick,
+        onReset = onReset,
+        onBack = onBack,
+    )
 }

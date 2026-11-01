@@ -498,7 +498,6 @@ class SessionService : Service() {
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
         val runtimeDir = File(filesDir, ".wayland-rt").apply { mkdirs() }
-        killStragglers()
         val stillStarting = { gen == sessionGen && SessionState.running }
         val prootPack = LinuxRuntime.patchedProot(this) || AddonPack.PROOT.await(this, stillStarting)
         val directAudioPack = AddonPack.DIRECTAUDIO.await(this, stillStarting)
@@ -1437,14 +1436,14 @@ class SessionService : Service() {
         a.canonicalPath == b.canonicalPath
     }.getOrDefault(a.absolutePath == b.absolutePath)
 
-    private fun teardown(prootPid: Int, expectedStartTime: Long? = null) {
-        fun stillSameProcess(): Boolean = expectedStartTime == null || readStat(prootPid)?.second == expectedStartTime
+    private fun teardown(prootPid: Int, expectedStartTime: Long) {
+        fun stillSameProcess(): Boolean = readStat(prootPid)?.second == expectedStartTime
         if (!stillSameProcess()) return
         val tree = descendants(prootPid)
         if (!stillSameProcess()) return
         saveWineRegistries(tree)
         android.os.Process.sendSignal(prootPid, 15)
-        if (!waitForExit(prootPid, GRACE_MS)) {
+        if (!waitForExit(ProcessCleanup.Identity(rootPid, expectedStartTime), GRACE_MS)) {
             if (!stillSameProcess()) return
             Log.w(TAG, "proot $prootPid did not exit on SIGTERM; killing it")
             android.os.Process.killProcess(prootPid)
@@ -1480,7 +1479,7 @@ class SessionService : Service() {
         if (servers.isEmpty()) return
         servers.forEach { (pid, _) -> android.os.Process.sendSignal(pid, 15) }
         val deadline = System.currentTimeMillis() + WINE_SAVE_MS
-        val saved = servers.count { (pid, _) -> waitForExit(pid, (deadline - System.currentTimeMillis()).coerceAtLeast(0)) }
+        val saved = servers.count { (pid, started) -> waitForExit(ProcessCleanup.Identity(pid, started), (deadline - System.currentTimeMillis()).coerceAtLeast(0)) }
         Log.i(TAG, "wineserver registry save: $saved of ${servers.size} exited after SIGTERM")
     }
 
@@ -2116,8 +2115,9 @@ class SessionService : Service() {
         launchWatcher = null
         syncWatcher?.stopWatching()
         syncWatcher = null
-        val prootPid = sessionPid
-        sessionPid = -1
+        val process = sessionProcess
+        sessionProcess = null
+        val prootPid = process?.pid ?: -1
         val auxiliary = synchronized(auxiliaryProcessesLock) {
             auxiliaryProcesses.toMap().also { auxiliaryProcesses.clear() }
         }
@@ -2145,11 +2145,10 @@ class SessionService : Service() {
             if (prootPid > 1 || auxiliary.isNotEmpty()) {
                 Thread({
                     try {
-                        if (prootPid > 1 && steamClientMayRun) askSteamToExit(prootPid)
+                        if (process != null && steamClientMayRun) askSteamToExit(process)
                         com.droiddeck.launcher.stores.gog.GogComet.end(stoppedSession)
                         auxiliary.forEach { (pid, started) -> teardown(pid, started) }
-                        if (prootPid > 1) teardown(prootPid)
-                        killGuestLeftovers()
+                        if (process != null) teardown(process.pid, process.started)
                     } catch (e: Throwable) {
                         if (e is InterruptedException) Thread.currentThread().interrupt()
                     } finally {
