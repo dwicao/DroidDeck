@@ -1128,6 +1128,11 @@ class AgentTest(Temp):
         self.assertIn('var patch = zone == "cn" ? "cn.patch.battlenet.com.cn" : zone + ".patch.battle.net";', script)
         self.assertIn("+ patch + ':1119/'", script)
 
+    def test_the_driver_waits_on_the_install_form_and_names_a_folder_that_is_taken(self):
+        script = BNET["AGENT_SCRIPT"]
+        self.assertIn(r'if (/"form"\s*:\s*\{/.test(s)) {', script)
+        self.assertIn("the game folder already holds a game", script)
+
 
 class AgentJobTest(Harness):
     def setUp(self):
