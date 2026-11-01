@@ -863,6 +863,9 @@
     <string name="setup_game_debug_logs_hint">Proton-, Wine- és grafikai diagnosztika a következő játékindításkor. Csökkentheti a teljesítményt, és több tárhelyet használ.</string>
     <string name="setup_game_debug_logs_restart">Indítsa újra ezt a munkamenetet a játék-hibakeresési naplók mentéséhez</string>
     <string name="setup_logging_update_failed">Nem sikerült frissíteni a naplózást. Ellenőrizze a kapcsolót, és próbálja újra.</string>
+    <string name="setup_log_level">Naplószint</string>
+    <string name="setup_log_level_standard">Normál</string>
+    <string name="setup_log_level_detailed">Részletes</string>
     <string name="setup_agent_commands">Hibakeresési eszközök</string>
     <string name="setup_latest_logs">Legutóbbi munkamenet-naplók</string>
     <string name="setup_saved_logs">Mentett munkamenet-naplók</string>

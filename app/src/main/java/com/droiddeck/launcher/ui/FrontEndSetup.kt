@@ -530,6 +530,14 @@ internal fun SetupPanel(
                                 s.gameDebugLogsEnabled,
                                 enabled = s.logsEnabled,
                             ) { a.onGameDebugLogs() }
+                            if (s.logsEnabled) ChoiceRow(
+                                host, "log-level", stringResource(R.string.setup_log_level), null,
+                                listOf(
+                                    com.droiddeck.launcher.session.SessionPrefs.LOG_LEVEL_STANDARD to stringResource(R.string.setup_log_level_standard),
+                                    com.droiddeck.launcher.session.SessionPrefs.LOG_LEVEL_DETAILED to stringResource(R.string.setup_log_level_detailed),
+                                ),
+                                s.logLevel, onPick = a.onLogLevel,
+                            )
                             ToggleRow(host, "vacdiag", stringResource(R.string.setup_vac_diag), stringResource(R.string.setup_vac_diag_hint), s.vacDiagnostics) { a.onVacDiagnostics() }
                             ToggleRow(host, "agent-commands", stringResource(R.string.setup_agent_commands), null, s.agentCommands) { a.onAgentCommands() }
                             s.allFilesAllowed?.let { on ->

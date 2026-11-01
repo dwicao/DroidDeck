@@ -24,6 +24,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.PowerManager
 import android.hardware.display.DisplayManager
+import android.os.SystemClock
 import android.view.Display
 import android.util.Log
 import android.widget.Toast
@@ -470,6 +471,19 @@ class SessionService : Service() {
 
 
     private fun runSession(gen: Int) {
+        val detailed = SessionPrefs.logsEnabled(this) &&
+            SessionPrefs.sessionLogLevel(this) == SessionPrefs.LOG_LEVEL_DETAILED
+        var prepMark = SystemClock.elapsedRealtime()
+        var capturing = false
+        val pendingPrep = ArrayList<String>()
+        fun prep(step: String) {
+            if (!detailed) return
+            val now = SystemClock.elapsedRealtime()
+            val line = "prep: $step ${now - prepMark}ms"
+            prepMark = now
+            if (capturing) Log.i(TAG, line) else pendingPrep.add(line)
+        }
+
         SessionTerminal.clear()
         com.droiddeck.launcher.gpu.TpUbwcHint.forThisDevice(this)
         try {
@@ -479,6 +493,7 @@ class SessionService : Service() {
             stopSession(-1)
             return
         }
+        prep("terminal and accounts")
 
         val root = LinuxRuntime.rootDir(this)
         val sessionRoot = LinuxRuntime.sessionRoot(this).apply { mkdirs() }
@@ -530,6 +545,7 @@ class SessionService : Service() {
         com.droiddeck.launcher.agent.AgentGuest.reset(this)
         com.droiddeck.launcher.stores.gog.GogComet.begin()
         com.droiddeck.launcher.stores.StoreLaunchRequests.start(this)
+        prep("store hooks")
 
         val sessionDir = openSessionFolder()
         try {
@@ -545,8 +561,16 @@ class SessionService : Service() {
         runCatching { sessionLog.appendText(prootLine + "\n") }
             .onFailure { Log.w(TAG, "could not write the proot line to ${sessionLog.path}", it) }
 
+        Log.i(TAG, ThrottleWatch.start(this))
+        Log.i(TAG, SamsungPerf.start(this))
+        Log.i(TAG, BoostReport.start(this, sessionDir))
+        capturing = true
+        pendingPrep.forEach { Log.i(TAG, it) }
+        pendingPrep.clear()
+        prep("report and log capture")
         Log.i(TAG, GpuClockPin.start(this))
         Log.i(TAG, GameThreadHints.start(this))
+        prep("clock and thread hints")
         Log.i(TAG, ThrottleWatch.start(this))
         Log.i(TAG, SamsungPerf.start(this))
         Log.i(TAG, BoostReport.start(this, sessionDir))
@@ -569,6 +593,7 @@ class SessionService : Service() {
         addClientEnvironment(guest, steamHere, gen)
         if (steamHere) guest.add("BL_EPIC_APP_ID=" + com.droiddeck.launcher.stores.epic.EpicClient.shortcutAppId)
         val fastPathAt = guest.size
+        prep("client environment")
 
         val pulse = startAudio(guest, sessionDir, directAudioPack)
         if (steamHere) {
@@ -576,6 +601,7 @@ class SessionService : Service() {
             encoder.attach(this)
             components.add(encoder)
             guest.add("BL_VENC_SOCKET=" + encoder.socket.absolutePath)
+            prep("video encoder")
         }
 
         guest.add("BL_WIDTH=" + size.first)
@@ -593,6 +619,7 @@ class SessionService : Service() {
         guest.add("WINE_OFFSCREEN_CHECK_MS=100")
         guest.add("BL_REFRESH=" + Math.round(SessionState.refreshHz))
         guest.add("BL_LOG=" + sessionLog.path)
+        if (detailed) guest.add("BL_LOG_LEVEL=detailed")
         guest.add("BL_DEBUG_DIR=" + sessionDir.path)
 
         val fakeInputDir = File(sessionRoot, "dev/input").apply { mkdirs() }
@@ -604,6 +631,7 @@ class SessionService : Service() {
             addControllerEnvironment(guest, fakeInputDir, sessionDir)
             SessionState.padBridge?.syncConnectedControllers()
         }
+        prep("controllers")
         val noSteamGame = noSteamGame()
         if (noSteamGame) guest.add("BL_PIN_CORES=0")
         if ((steamHere || SessionState.program == NoSteamLaunch.EPIC) && com.droiddeck.launcher.stores.epic.EpicClient.read(this).installed) {
@@ -612,6 +640,7 @@ class SessionService : Service() {
             runCatching { com.droiddeck.launcher.stores.epic.EpicClient.prepareInstallDir(this) }
                 .onFailure { Log.w(TAG, "Epic install directory setup failed", it) }
         }
+        prep("epic library")
         if (steamHere || noSteamGame) {
             val cached = com.droiddeck.launcher.frontend.AddedGames.listingFile(this)
             val listing = if (steamHere && cached.isFile) {
@@ -627,6 +656,7 @@ class SessionService : Service() {
             if (OfflineMode.enabled(this)) guest.add("BL_STEAM_OFFLINE=1")
             if (com.droiddeck.launcher.gpu.Lossless.owned(this)) guest.add("BL_LOSSLESS_OWNED=1")
         }
+        prep("added games")
         guest.add("BL_LAUNCH_DIR=" + sessionRoot.path)
         // The screen reader: with Orca installed and enabled, every session that enters the
         // runtime starts it (droiddeck-orca reads BL_ORCA in the session script and the desktop).
@@ -673,6 +703,7 @@ class SessionService : Service() {
         FileUtils.clear(File(LinuxRuntime.liveDir(this), "shm"))
 
         val binds = sessionBinds(controllersOn, fakeInputDir, sessionDir, guest, sessionRoot, runtimeDir)
+        prep("binds")
         val fastPathKey = if (ProotFastPath.enabled(this)) {
             val prootBinds = LinuxRuntime.binds(
                 this, sessionRoot, runtimeDir, LinuxRuntime.sharedStorage(this), binds,
@@ -734,6 +765,7 @@ class SessionService : Service() {
             return
         }
         components.forEach { it.start() }
+        prep("components")
 
         val line = command.joinToString(" ") {
             it.replace("\\", "\\\\").replace(" ", "\\ ")
@@ -759,6 +791,7 @@ class SessionService : Service() {
         }, null, sessionLog.takeIf { "PROOT_PROFILE=1" in hostEnv.asArray() })
         sessionProcess = OrphanReaper.identity(pid)
         Log.i(TAG, "session pid $pid, log ${sessionLog.path}")
+        prep("proot spawn")
         if (gen != sessionGen || !SessionState.running) {
             Log.i(TAG, "session stopped while its guest was starting; teardown will collect it")
             return

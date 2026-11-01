@@ -863,6 +863,9 @@
     <string name="setup_game_debug_logs_hint">Sisällytä Protonin, Winen ja grafiikan diagnostiikka seuraavaan pelin käynnistykseen. Voi heikentää suorituskykyä ja käyttää enemmän tallennustilaa.</string>
     <string name="setup_game_debug_logs_restart">Käynnistä tämä istunto uudelleen tallentaaksesi pelien vianmäärityslokit</string>
     <string name="setup_logging_update_failed">Lokitusta ei voitu päivittää. Tarkista kytkin ja yritä uudelleen.</string>
+    <string name="setup_log_level">Lokin taso</string>
+    <string name="setup_log_level_standard">Vakio</string>
+    <string name="setup_log_level_detailed">Yksityiskohtainen</string>
     <string name="setup_agent_commands">Vianmääritystyökalut</string>
     <string name="setup_latest_logs">Viimeisimmät istunnon lokit</string>
     <string name="setup_saved_logs">Tallennetut istunnon lokit</string>

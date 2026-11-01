@@ -24,6 +24,9 @@ object SessionPrefs {
     private const val SLOW_USB_WARNING_OFF = "slowUsbWarningOff"
     private const val SLOW_USB_DISMISSED = "slowUsbDismissed"
 
+    const val LOG_LEVEL_STANDARD = 0
+    const val LOG_LEVEL_DETAILED = 1
+
     const val CONTROLLER_DECK = "deck"
     const val CONTROLLER_XBOX360 = "xbox360"
     const val CONTROLLER_STEAM = "steamcontroller"
@@ -901,6 +904,13 @@ object SessionPrefs {
             android.util.Log.e("GameEnvironment", "Could not update game diagnostics", e)
             false
         }
+    }
+
+    fun sessionLogLevel(context: Context): Int =
+        prefs(context).getInt("sessionLogLevel", LOG_LEVEL_STANDARD)
+
+    fun setSessionLogLevel(context: Context, level: Int) {
+        prefs(context).edit().putInt("sessionLogLevel", level).apply()
     }
 
     fun battleNetNoSteamSet(context: Context): Boolean = prefs(context).getBoolean("battleNetNoSteamSet", false)

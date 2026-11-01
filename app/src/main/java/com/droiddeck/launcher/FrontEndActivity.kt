@@ -554,6 +554,7 @@ class FrontEndActivity : ComponentActivity() {
     private var logsEnabled by mutableStateOf(true)
     private var gameDebugLogsEnabled by mutableStateOf(false)
     private var gameDebugLogsNeedsRestart by mutableStateOf(false)
+    private var logLevel by mutableStateOf(0)
     private var vacDiagnostics by mutableStateOf(false)
     private var agentCommands by mutableStateOf(false)
     private var clearCachedApps by mutableStateOf(false)
@@ -1263,6 +1264,7 @@ class FrontEndActivity : ComponentActivity() {
                         offlineAccount = offlineAccount, offline = offline,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
                         gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
+                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, logLevel = logLevel,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         bluetoothAllowed = bluetoothAllowed, allFilesAllowed = allFilesAllowed,
@@ -1496,6 +1498,10 @@ class FrontEndActivity : ComponentActivity() {
                             ).show()
                             gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
                             gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
+                        },
+                        onLogLevel = {
+                            SessionPrefs.setSessionLogLevel(this, it)
+                            logLevel = SessionPrefs.sessionLogLevel(this)
                         },
                         onVacDiagnostics = {
                             SessionPrefs.setVacDiagnostics(this, !SessionPrefs.vacDiagnostics(this))
@@ -3102,6 +3108,7 @@ class FrontEndActivity : ComponentActivity() {
         logsEnabled = SessionPrefs.logsEnabled(this)
         gameDebugLogsEnabled = SessionPrefs.gameDebugLogsEnabled(this)
         gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart()
+        logLevel = SessionPrefs.sessionLogLevel(this)
         vacDiagnostics = SessionPrefs.vacDiagnostics(this)
         agentCommands = com.droiddeck.launcher.agent.AgentAccess.commandsEnabled(this)
         clearCachedApps = SessionPrefs.clearCachedApps(this)
