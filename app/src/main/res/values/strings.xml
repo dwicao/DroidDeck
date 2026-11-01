@@ -3875,4 +3875,9 @@
         <item quantity="one">%1$d was already there.</item>
         <item quantity="other">%1$d were already there.</item>
     </plurals>
+    <string name="xbox_content_title">Xbox content</string>
+    <string name="xbox_content_unavailable">No licensed PC content packages are available for this game.</string>
+    <string name="xbox_content_update">%1$s · Update / verify</string>
+    <string name="xbox_content_install">%1$s · Install</string>
+    <string name="xbox_choose_pc_content">Choose PC content</string>
 </resources>

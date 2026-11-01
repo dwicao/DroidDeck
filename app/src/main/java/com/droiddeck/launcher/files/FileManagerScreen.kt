@@ -36,6 +36,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.CreateNewFolder
 import androidx.compose.material.icons.filled.Delete
@@ -747,8 +750,9 @@ fun FileManagerScreen(
                 .then(if (compactToolbar) Modifier.horizontalScroll(rememberScrollState()) else Modifier)
                 .padding(horizontal = 8.dp, vertical = 6.dp),
         ) {
-            IconButton(onClick = { requestNavigation(FileManagerNavigation.UP) }, enabled = canGoUp && !cancellingNavigation, modifier = Modifier.focusGlide(CircleShape)) {
-                Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary)
+            IconButton(onClick = { requestNavigation(FileManagerNavigation.BACK) }, enabled = canGoUp && !cancellingNavigation) {
+                Icon(Icons.Filled.ArrowBack, stringResource(R.string.fm_back), tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.scale(scaleX = if (LocalLayoutDirection.current == LayoutDirection.Rtl) -1f else 1f, scaleY = 1f))
             }
 
             // The root-mounted USB drive sits inside internal storage, so its path alone says "Internal".
