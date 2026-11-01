@@ -155,12 +155,18 @@ class SessionLifecycleTest {
                 service.get().onStartCommand(Intent(), 0, 2)
                 assertFalse(SessionState.running)
                 assertFalse(notified)
-                val teardown = Thread.getAllStackTraces().keys.single { it.name == "session-teardown" }
+                var teardown: Thread? = null
+                val appeared = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
+                while (teardown == null && System.nanoTime() < appeared) {
+                    teardown = Thread.getAllStackTraces().keys.firstOrNull { it.name == "session-teardown" }
+                    if (teardown == null) Thread.sleep(10)
+                }
+                val worker = requireNotNull(teardown) { "no session-teardown worker" }
                 val deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5)
-                while (teardown.isAlive && teardown.state != Thread.State.BLOCKED && System.nanoTime() < deadline) {
+                while (worker.isAlive && worker.state != Thread.State.BLOCKED && System.nanoTime() < deadline) {
                     Thread.yield()
                 }
-                assertEquals(Thread.State.BLOCKED, teardown.state)
+                assertEquals(Thread.State.BLOCKED, worker.state)
                 parts.add(object : SessionPart() {
                     override fun start() {}
                     override fun stop() { stopped.countDown() }

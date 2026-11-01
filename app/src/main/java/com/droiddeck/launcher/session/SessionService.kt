@@ -2024,6 +2024,7 @@ class SessionService : Service() {
                 com.droiddeck.launcher.stores.StoreLaunchRequests.stop()
                 Thread({ com.droiddeck.launcher.stores.CloudSaves.uploadAllDirty(applicationContext, "session-end", running = false) }, "cloud-session-end").start()
                 releaseLocks()
+                SessionState.finishStop()
                 // The setting was turned off while the session held the drive; unmount refuses once a new session started.
                 if (!SessionPrefs.usbRootEnabled(this)) Thread({
                     if (!UsbRootMount.mounted(applicationContext)) return@Thread
@@ -2039,6 +2040,7 @@ class SessionService : Service() {
                     val message = SessionState.failureMessage ?: "Session guest exited with status $status"
                     val failureStatus = SessionState.failureStatus ?: status
                     SessionEvents.fail(code, message, failureStatus)
+                    SessionState.relaunch = null
                 }
                 SessionState.steamVr = false
                 com.droiddeck.launcher.glasses.Glasses.cancelSteamVrStart()
