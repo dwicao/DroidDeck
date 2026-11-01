@@ -1436,17 +1436,18 @@ class SessionService : Service() {
         a.canonicalPath == b.canonicalPath
     }.getOrDefault(a.absolutePath == b.absolutePath)
 
-    private fun teardown(prootPid: Int, expectedStartTime: Long) {
-        fun stillSameProcess(): Boolean = readStat(prootPid)?.second == expectedStartTime
+    private fun teardown(rootPid: Int, expectedStartTime: Long) {
+        fun stillSameProcess(): Boolean = readStat(rootPid)?.second == expectedStartTime
         if (!stillSameProcess()) return
-        val tree = descendants(prootPid)
+        val tree = descendants(rootPid)
         if (!stillSameProcess()) return
         saveWineRegistries(tree)
-        android.os.Process.sendSignal(prootPid, 15)
-        if (!waitForExit(ProcessCleanup.Identity(rootPid, expectedStartTime), GRACE_MS)) {
+        android.os.Process.sendSignal(rootPid, 15)
+        val identity = ProcessCleanup.Identity(rootPid, expectedStartTime)
+        if (!waitForExit(identity, GRACE_MS)) {
             if (!stillSameProcess()) return
-            Log.w(TAG, "proot $prootPid did not exit on SIGTERM; killing it")
-            android.os.Process.killProcess(prootPid)
+            Log.w(TAG, "proot $rootPid did not exit on SIGTERM; killing it")
+            android.os.Process.killProcess(rootPid)
         }
         var killed = 0
         for ((pid, started) in tree) {
