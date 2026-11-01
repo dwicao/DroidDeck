@@ -701,6 +701,14 @@ object SessionPrefs {
         prefs(context).edit().putBoolean("boostCheck", on).apply()
     }
 
+    /** Whether the phone's shared storage (/sdcard) is mounted into the Linux container. */
+    @JvmStatic
+    fun mountSharedStorage(context: Context): Boolean = prefs(context).getBoolean("mountSharedStorage", true)
+
+    fun setMountSharedStorage(context: Context, on: Boolean) {
+        prefs(context).edit().putBoolean("mountSharedStorage", on).apply()
+    }
+
     fun prootNoSeccomp(context: Context): Boolean = prefs(context).getBoolean("prootNoSeccomp", false)
 
     fun setProotNoSeccomp(context: Context, on: Boolean) {
