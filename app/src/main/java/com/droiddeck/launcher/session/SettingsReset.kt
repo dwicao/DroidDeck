@@ -17,7 +17,7 @@ object SettingsReset {
         "storesInstallLanguage",
         "hud", "hudDeck", "hudFps", "hudBattery", "hudGraph", "hudColor", "hudOpacity", "__KEEP_droidDeckHud__", "__KEEP_droidDeckHudPos__", "backActionsInverted", "backDoubleTapMs", "touch", "osc", "shape", "steamController",
         "gamepadLeft", "gamepadRight", "pipAutoEnter", "unfoldedControls", "unfoldedControlsWithController",
-        "stretch16x9", "picturePosition", "railLabels", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
+        "foldedAspect", "deckControlsWhen", "deckControlsScale", "stretch16x9", "picturePosition", "railLabels", "pcKeyboardSize", "pcKeyboardOpacity", "pcKeyboardHiddenKeys",
         "gpuDriverMode", "androidDriver", "linuxDriver", "linuxDriver.steam", "linuxDriver.desktop",
         "tuSysmem", "glThread", "noGlError", "zinkLazy", "mangoapp", "gpuClockPin", "thermalGuard", "performanceBoost", "boostCheck", "gamescopeRealtime", "ramCapMb", "vramCapMb", "zramClient",
         "directAudio", "mic", "wifiDiscovery", "clientCpusOverride", "clientCpus", "gameCpus",
@@ -31,6 +31,7 @@ object SettingsReset {
 
     internal val SESSION_PREFIXES = listOf(
         "resolutionCap.", "displayResolution.", "customRes.", "hdr.", "fpsLimit.", "performanceMode.", "suspendPolicy.",
+        "followDivisor.",
     )
 
     private val STEAM_TOUCH_KEYS = listOf("feedback", "autoFade", "gyro", "shake")

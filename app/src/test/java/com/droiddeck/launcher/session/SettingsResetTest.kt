@@ -42,6 +42,7 @@ class SettingsResetTest {
         SessionPrefs.setHudOpacity(app, 40)
         SessionPrefs.setDroidDeckHudConfig(app, "hudSize=mega,showFPSGraph=0")
         SessionPrefs.setDroidDeckHudPosition(app, 120f, 40f)
+        SessionPrefs.setFollowDivisor(app, "game-123", "2184x1968", 2f)
         ControllerPrefs.setOpacity(app, 40)
         AppUiPrefs.setScale(app, 150)
         FrameGen.set(app, FrameGen.Mode(FrameGen.ENGINE_DDFG, 3))
@@ -68,6 +69,7 @@ class SettingsResetTest {
         assertEquals(SessionPrefs.HUD_OPACITY_DEFAULT, SessionPrefs.hudOpacity(app))
         assertNull(SessionPrefs.droidDeckHudConfig(app))
         assertNull(SessionPrefs.droidDeckHudPosition(app))
+        assertEquals(1f, SessionPrefs.followDivisor(app, "game-123", "2184x1968"))
         assertEquals(100, ControllerPrefs.read(app).opacity)
         assertEquals(AppUiPrefs.DEFAULT_SCALE, AppUiPrefs.scale(app))
         assertEquals(FrameGen.Mode.OFF.engine, FrameGen.engine(app))
@@ -127,7 +129,8 @@ class SettingsResetTest {
     }
 
     @Test fun perModeKeysAreSettings() {
-        listOf("resolutionCap.steam", "displayResolution.desktop", "customRes.steam", "hdr.steam", "fpsLimit.desktop", "suspendPolicy.steam")
+        listOf("resolutionCap.steam", "displayResolution.desktop", "customRes.steam", "hdr.steam", "fpsLimit.desktop", "suspendPolicy.steam",
+            "followDivisor.client.2184x1968", "followDivisor.desktop.2184x1968")
             .forEach { assertTrue(it, SettingsReset.isSessionSetting(it)) }
         listOf("addedName:/x", "addedAppId:/x", "gpuAutoInstalled", "romsDir", "gameStorage", "micAsked", "gameTextureFiltering")
             .forEach { assertFalse(it, SettingsReset.isSessionSetting(it)) }
