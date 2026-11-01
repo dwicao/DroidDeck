@@ -3362,4 +3362,5 @@
     <string name="gog_refresh_action">刷新安装</string>
     <string name="gog_select_patch">选择</string>
 
+    <string name="exit_hint_back">再按一次返回键退出</string>
 </resources>

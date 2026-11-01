@@ -3423,4 +3423,5 @@
     <string name="gog_repair_action">Dosyaları onar</string>
     <string name="gog_refresh_action">Kurulumu yenile</string>
     <string name="gog_select_patch">Seç</string>
+    <string name="exit_hint_back">Çıkmak için bir kez daha geri basın</string>
 </resources>

@@ -3497,4 +3497,5 @@
     <string name="gog_repair_action">Opravit soubory</string>
     <string name="gog_refresh_action">Obnovit instalaci</string>
     <string name="gog_select_patch">Vybrat</string>
+    <string name="exit_hint_back">Stiskněte znovu zpět pro ukončení</string>
 </resources>

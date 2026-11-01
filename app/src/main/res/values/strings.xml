@@ -3673,4 +3673,5 @@
     <string name="upd_task_target">Installation target: %1$s</string>
     <string name="upd_task_different">This package differs from the selected release. Continue to install the package shown above, or discard it to download the selected release.</string>
     <string name="upd_discard_download">Discard downloaded package</string>
+    <string name="exit_hint_back">Press back once more to exit</string>
 </resources>

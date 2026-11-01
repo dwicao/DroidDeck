@@ -3395,4 +3395,5 @@
     <string name="gog_repair_action">ซ่อมแซมไฟล์</string>
     <string name="gog_refresh_action">รีเฟรชการติดตั้ง</string>
     <string name="gog_select_patch">เลือก</string>
+    <string name="exit_hint_back">กดกลับอีกครั้งเพื่อออก</string>
 </resources>

@@ -3397,4 +3397,5 @@
     <string name="gog_repair_action">파일 복구</string>
     <string name="gog_refresh_action">설치 새로 고침</string>
     <string name="gog_select_patch">선택</string>
+    <string name="exit_hint_back">한 번 더 뒤로를 누르면 종료됩니다</string>
 </resources>

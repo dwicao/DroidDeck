@@ -3423,4 +3423,5 @@
     <string name="gog_repair_action">Reparer filer</string>
     <string name="gog_refresh_action">Opdater installationen</string>
     <string name="gog_select_patch">Vælg</string>
+    <string name="exit_hint_back">Tryk tilbage igen for at afslutte</string>
 </resources>

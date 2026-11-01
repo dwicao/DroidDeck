@@ -3345,4 +3345,5 @@
     <string name="gog_repair_action">ファイルを修復</string>
     <string name="gog_refresh_action">インストールを更新</string>
     <string name="gog_select_patch">選択</string>
+    <string name="exit_hint_back">もう一度戻るを押すと終了します</string>
 </resources>

@@ -3423,4 +3423,5 @@
     <string name="gog_repair_action">Dateien reparieren</string>
     <string name="gog_refresh_action">Installation erneuern</string>
     <string name="gog_select_patch">Auswählen</string>
+    <string name="exit_hint_back">Noch einmal zurück drücken zum Beenden</string>
 </resources>

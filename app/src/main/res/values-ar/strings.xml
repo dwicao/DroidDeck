@@ -3571,4 +3571,5 @@
     <string name="gog_repair_action">إصلاح الملفات</string>
     <string name="gog_refresh_action">تحديث التثبيت</string>
     <string name="gog_select_patch">اختيار</string>
+    <string name="exit_hint_back">اضغط زر الرجوع مرة أخرى للخروج</string>
 </resources>

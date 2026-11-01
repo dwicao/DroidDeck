@@ -3423,4 +3423,5 @@
     <string name="gog_repair_action">Επιδιόρθωση αρχείων</string>
     <string name="gog_refresh_action">Ανανέωση εγκατάστασης</string>
     <string name="gog_select_patch">Επιλογή</string>
+    <string name="exit_hint_back">Πατήστε ξανά πίσω για έξοδο</string>
 </resources>

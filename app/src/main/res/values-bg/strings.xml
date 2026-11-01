@@ -3423,4 +3423,5 @@
     <string name="gog_repair_action">Поправка на файловете</string>
     <string name="gog_refresh_action">Обновяване на инсталацията</string>
     <string name="gog_select_patch">Избор</string>
+    <string name="exit_hint_back">Натиснете отново „Назад“, за да излезете</string>
 </resources>

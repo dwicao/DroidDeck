@@ -3460,4 +3460,5 @@
     <string name="gog_repair_action">Ripara file</string>
     <string name="gog_refresh_action">Aggiorna installazione</string>
     <string name="gog_select_patch">Seleziona</string>
+    <string name="exit_hint_back">Premi di nuovo indietro per uscire</string>
 </resources>
