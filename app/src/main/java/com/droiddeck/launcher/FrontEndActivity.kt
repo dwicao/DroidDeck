@@ -867,6 +867,7 @@ class FrontEndActivity : ComponentActivity() {
     }
 
     private fun readGameIntent(request: Intent) {
+        request.getStringExtra(com.droiddeck.launcher.update.AppUpdateService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.update.AppUpdateService.EXTRA_NAV) }
         request.getStringExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV)?.let { navRequest = it; request.removeExtra(com.droiddeck.launcher.stores.download.StoreDownloadService.EXTRA_NAV) }
         shortcutPicker = request.action == Intent.ACTION_CREATE_SHORTCUT
         if (shortcutPicker) {
@@ -1825,6 +1826,7 @@ class FrontEndActivity : ComponentActivity() {
     override fun onPause() {
         compatLaunchVisible = false
         if (android.os.Build.VERSION.SDK_INT >= 29) com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, true)
+        updates.onPause()
         super.onPause()
     }
 
