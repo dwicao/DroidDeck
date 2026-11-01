@@ -61,6 +61,12 @@ class App : Application() {
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.itch.ItchBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.xbox.XboxBackend)
         com.droiddeck.launcher.stores.StoresState.register(com.droiddeck.launcher.stores.battlenet.BattleNetBackend)
+        if (com.droiddeck.launcher.session.SessionPrefs.usbRootEnabled(this)) {
+            Thread({
+                com.droiddeck.launcher.session.UsbRootMount.enable(this)
+                com.droiddeck.launcher.session.UsbRootMount.onChange?.invoke()
+            }, "usb-root").start()
+        }
     }
 
     /** Fetches the packs an existing setup already relies on, so the first use after an update does not wait. */

@@ -91,8 +91,10 @@ object Library {
         // The x86-64 client gets its card folder and its own moved libraries; the games folders stay the arm64 client's.
         val card = GameStorage.effective(context)
         val custom = SteamLibraryRegistry.available(context, arch).map { it.host to it.label }
-        val libraries = if (arch == "x86_64") listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label }) + custom
-        else listOfNotNull(root to "internal", card?.let { File(it.path) to it.label }) +
+        val usb = GameStorage.usbDrive(context)?.let { it to GameStorage.usbLabel(context) }
+        val libraries = if (arch == "x86_64") listOfNotNull(root to "internal", card?.let { File(it.path, GameStorage.X64_CARD_DIR) to it.label },
+            usb?.let { (dir, label) -> File(dir, GameStorage.X64_CARD_DIR) to label }) + custom
+        else listOfNotNull(root to "internal", card?.let { File(it.path) to it.label }, usb) +
             GameStorage.gamesFolderLibraries(context).map { it.host to it.label } + custom
         return libraries.distinctBy { canonical(it.first) }
     }

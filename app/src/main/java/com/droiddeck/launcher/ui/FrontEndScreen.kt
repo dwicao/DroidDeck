@@ -180,6 +180,7 @@ class FrontEndState(
     val orcaError: String? = null,
     /** The Updates page: DroidDeck's own builds and the channel followed. */
     val updates: UpdatesState = UpdatesState(),
+    val usb: UsbUi = UsbUi(),
 )
 
 class FrontEndActions(
@@ -295,6 +296,7 @@ class FrontEndActions(
     val onOpenNotificationSettings: () -> Unit = {},
     val controller: ControllerActions? = null,
     val updates: UpdatesActions = UpdatesActions(),
+    val usb: UsbActions = UsbActions(),
 )
 
 internal object Motion {
@@ -470,6 +472,7 @@ private fun FrontEndScreenBody(s: FrontEndState, a: FrontEndActions, page: (@Com
             "components" -> a.onComponents(true)
             "setup:launcher" -> { SetupTabs.openLauncher = true; selected = "setup" }
             "setup:integration" -> { SetupTabs.openOverview = true; selected = "setup" }
+            "setup:storage" -> com.droiddeck.launcher.storage.StorageState.requestOpen()
             else -> selected = target
         }
         a.onNavigated()
