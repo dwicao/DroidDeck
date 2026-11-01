@@ -1352,6 +1352,7 @@ struct DeckImu {
   uint16_t pressure[2];    // left, right: 0..32767
   uint32_t controls;       // DECK_EXTRA_* bits
   uint32_t pad_type;       // PAD_TYPE_* | 0x80000000, written by the app; 0 until it does
+  uint32_t latency;
 };
 static_assert(offsetof(DeckImu, pad_type) == FAKE_INPUT_RING_PAD_TYPE_OFFSET,
                 "DeckImu::pad_type matches FakeInputWriter and the ring reader");
@@ -1526,6 +1527,27 @@ __attribute__((visibility("hidden"))) static uint32_t live_pad_type() {
   const DeckImu *imu = blocks ? reinterpret_cast<const DeckImu *>(blocks + FAKE_INPUT_RING_SIZE) : nullptr;
   uint32_t value = imu ? __atomic_load_n(&imu->pad_type, __ATOMIC_ACQUIRE) : 0;
   return value & PAD_TYPE_SET ? value & 0xff : session_pad_type();
+}
+
+__attribute__((visibility("hidden"))) static bool low_latency(uint32_t which) {
+  const uint8_t *blocks = ring_blocks();
+  const DeckImu *imu = blocks ? reinterpret_cast<const DeckImu *>(blocks + FAKE_INPUT_RING_SIZE) : nullptr;
+  return imu && (__atomic_load_n(&imu->latency, __ATOMIC_ACQUIRE) & which);
+}
+
+__attribute__((visibility("hidden"))) static int controller_report_interval_us(int normal_us) {
+  return low_latency(LATENCY_CONTROLLER) ? LOW_LATENCY_REPORT_INTERVAL_US : normal_us;
+}
+
+__attribute__((visibility("hidden"))) static void sleep_us(int us) {
+  struct timespec interval = {0, us * 1000L};
+  nanosleep(&interval, nullptr);
+}
+
+__attribute__((visibility("hidden"))) static uint64_t monotonic_us() {
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  return static_cast<uint64_t>(now.tv_sec) * 1000000ULL + static_cast<uint64_t>(now.tv_nsec) / 1000ULL;
 }
 
 static bool fake_triton_enabled() {
@@ -1789,7 +1811,7 @@ __attribute__((visibility("hidden"))) static void put_sony_touch(uint8_t *at, So
 }
 
 __attribute__((visibility("hidden"))) static void
-build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint32_t buttons, const int32_t *axes,
+build_sony_report(uint8_t *report, uint8_t model, uint32_t packet, uint64_t elapsed_us, uint32_t buttons, const int32_t *axes,
                   const DeckExtras &extras, SonyTouch &touch) {
   memset(report, 0, SONY_REPORT_BYTES);
   report[0] = 0x01;
@@ -1905,6 +1927,7 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
   int32_t axes[8] = {};
   DeckExtras extras;
   SonyTouch touch;
+  const uint64_t start_us = monotonic_us();
   // Switched to another type, the stream ends, as unplugging the controller would.
   while (live_pad_type() == type) {
     if (read_snapshot(self->ring, snap) && snap.generation == ring_generation(self->ring)) {
@@ -1924,8 +1947,7 @@ __attribute__((visibility("hidden"))) static void *sony_report_thread(void *arg)
     if (send(self->peer, report, sizeof(report), MSG_DONTWAIT | MSG_NOSIGNAL) < 0 &&
         errno != EAGAIN && errno != EWOULDBLOCK)
       break;
-    struct timespec interval = {0, DECK_REPORT_INTERVAL_US * 1000L};
-    nanosleep(&interval, nullptr);
+    sleep_us(controller_report_interval_us(DECK_REPORT_INTERVAL_US));
   }
   syscall(SYS_close, self->peer);
   munmap(self->ring, self->mapping_size);
@@ -4209,6 +4231,12 @@ static bool wait_snapshot(std::shared_ptr<FakeController> fake,
       return false;
     }
   }
+}
+
+static int forward_ioctl(int fd, ioctl_request_t op, void *argp) {
+  using ioctl_fn = int (*)(int, ioctl_request_t, ...);
+  static const auto next = reinterpret_cast<ioctl_fn>(dlsym(RTLD_NEXT, "ioctl"));
+  return next ? next(fd, op, argp) : static_cast<int>(syscall(SYS_ioctl, fd, op, argp));
 }
 
 EXPORT int ioctl(int fd, ioctl_request_t op, ...) {

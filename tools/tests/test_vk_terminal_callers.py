@@ -50,7 +50,17 @@ int32_t ANativeWindow_getWidth(ANativeWindow *);
 int32_t ANativeWindow_getHeight(ANativeWindow *);
 void ANativeWindow_release(ANativeWindow *);
 ''')
-        (tmp / 'android/hardware_buffer.h').write_text('#pragma once\ntypedef struct AHardwareBuffer AHardwareBuffer;\n')
+        (tmp / 'android/hardware_buffer.h').write_text('''
+#pragma once
+#include <stdint.h>
+typedef struct AHardwareBuffer AHardwareBuffer;
+typedef struct AHardwareBuffer_Desc {
+    uint32_t width, height, layers, format;
+    uint64_t usage;
+    uint32_t stride;
+} AHardwareBuffer_Desc;
+void AHardwareBuffer_describe(const AHardwareBuffer *, AHardwareBuffer_Desc *);
+''')
         (tmp / 'android/log.h').write_text('''
 #pragma once
 #define ANDROID_LOG_INFO 4

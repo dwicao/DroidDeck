@@ -76,6 +76,8 @@ void vk_loader_load_device(VkDevice d) { assert(0); }
 PFN_vkGetInstanceProcAddr vk_loader_gipa(void) { return NULL; }
 void vkp_effects_bind_device(VkDevice d, VkPhysicalDevice p, const VkPhysicalDeviceMemoryProperties *m) {}
 int vkp_effects_active(void) { return 0; }
+int vkp_effects_upscaling(void) { return 0; }
+int vkp_effects_postprocessing(void) { return 0; }
 VkFilter vkp_effects_blit_filter(void) { return VK_FILTER_NEAREST; }
 void vkp_effects_set_formats(VkFormat a, VkFormat b) {}
 VkImage vkp_effects_run(VkCommandBuffer c, VkImage i, int w, int h, int ow, int oh, int *rw, int *rh) {
@@ -108,7 +110,26 @@ struct surface {
     struct vkp_image *shm_img;
     struct wl_resource *resource;
     int buf_w, buf_h, buf_alpha, has_content;
+    float src[4];
+    int src_set;
+    struct damage_list { int32_t r[4][4]; int n; } damage_buf, damage_local;
+    struct surface *parent;
+    int mapped;
+    enum surface_role { ROLE_NONE, ROLE_TOPLEVEL, ROLE_SUBSURFACE, ROLE_DESKTOP, ROLE_CURSOR } role;
 };
+static void surface_size(const struct surface *s, int *w, int *h) { *w = s->buf_w; *h = s->buf_h; }
+static void scene_size(int *w, int *h) { *w = 0; *h = 0; }
+static int64_t damage_area(const struct damage_list *d, int bound_w, int bound_h) {
+    (void)d; (void)bound_w; (void)bound_h; return 0;
+}
+static int64_t now_ns(void) { return 0; }
+void droiddeck_on_game_frame(void) {}
+static struct surface *g_hud_surface, *g_hud_shm;
+static int g_hud_new;
+static int64_t g_hud_last_ns, g_hud_shm_ns;
+void AHardwareBuffer_describe(const AHardwareBuffer *b, AHardwareBuffer_Desc *d) {
+    (void)b; memset(d, 0, sizeof(*d));
+}
 struct client_info { int asked_feedback, shm_frames; };
 struct wl_shm_buffer { int w, h, stride; const void *data; };
 #define WL_SHM_FORMAT_ARGB8888 0
