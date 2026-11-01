@@ -119,12 +119,12 @@ static int write_all(int fd, const unsigned char *p, size_t len) {
 static int rebake_shared(void *addr, size_t len, int prot) {
   const char *directory = rx_directory();
   size_t directory_len = strlen(directory);
-  if (!directory_len || directory_len + 40 >= PATH_MAX) return -1;
+  if (!directory_len || directory_len + 64 >= PATH_MAX) return -1;
   char path[PATH_MAX], staged[PATH_MAX];
   char *end = path + directory_len;
   memcpy(path, directory, directory_len);
   if (end[-1] != '/') *end++ = '/';
-  *end++ = '/';
+  end = stpcpy(end, ".droiddeck-rx/");
   end = put_hex(end, fnv1a(addr, len));
   *end++ = '-';
   end = put_hex(end, len);
@@ -136,6 +136,13 @@ static int rebake_shared(void *addr, size_t len, int prot) {
   }
   if (fd < 0) {
     syscall(SYS_mkdirat, AT_FDCWD, directory, 0700);
+    char subdir[PATH_MAX];
+    const char *last = strrchr(path, '/');
+    size_t sublen = last != NULL ? (size_t)(last - path) : 0;
+    if (!sublen || sublen >= sizeof subdir) return -1;
+    memcpy(subdir, path, sublen);
+    subdir[sublen] = 0;
+    syscall(SYS_mkdirat, AT_FDCWD, subdir, 0700);
     memcpy(staged, path, (size_t)(end - path));
     char *tail = put_hex(staged + (end - path), (uint64_t)syscall(SYS_gettid));
     *tail = 0;
