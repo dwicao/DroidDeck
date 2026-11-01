@@ -3638,22 +3638,6 @@
     <string name="epic_client_title">Epic Games Launcher</string>
     <string name="stores_fact_hltb">HowLongToBeat</string>
     <string name="stores_fact_metacritic">Metacritic</string>
-    <plurals name="decky_zip_warning_wait">
-        <item quantity="zero">يرجى الانتظار %1$d ثانية</item>
-        <item quantity="one">يرجى الانتظار %1$d ثانية</item>
-        <item quantity="two">يرجى الانتظار %1$d ثانية</item>
-        <item quantity="few">يرجى الانتظار %1$d ثانية</item>
-        <item quantity="many">يرجى الانتظار %1$d ثانية</item>
-        <item quantity="other">يرجى الانتظار %1$d ثانية</item>
-    </plurals>
-    <plurals name="session_end_runtime_damaged">
-        <item quantity="zero">بيئة Linux معطوبة: يشير %1$d رابط مكتبة إلى ملفات مفقودة (%2$s)، غالبًا بسبب توقف التثبيت. يحتفظ الإصلاح بألعابك وإعداداتك.</item>
-        <item quantity="one">بيئة Linux معطوبة: يشير %1$d رابط مكتبة إلى ملفات مفقودة (%2$s)، غالبًا بسبب توقف التثبيت. يحتفظ الإصلاح بألعابك وإعداداتك.</item>
-        <item quantity="two">بيئة Linux معطوبة: يشير %1$d رابط مكتبة إلى ملفات مفقودة (%2$s)، غالبًا بسبب توقف التثبيت. يحتفظ الإصلاح بألعابك وإعداداتك.</item>
-        <item quantity="few">بيئة Linux معطوبة: يشير %1$d رابط مكتبة إلى ملفات مفقودة (%2$s)، غالبًا بسبب توقف التثبيت. يحتفظ الإصلاح بألعابك وإعداداتك.</item>
-        <item quantity="many">بيئة Linux معطوبة: يشير %1$d رابط مكتبة إلى ملفات مفقودة (%2$s)، غالبًا بسبب توقف التثبيت. يحتفظ الإصلاح بألعابك وإعداداتك.</item>
-        <item quantity="other">بيئة Linux معطوبة: يشير %1$d رابط مكتبة إلى ملفات مفقودة (%2$s)، غالبًا بسبب توقف التثبيت. يحتفظ الإصلاح بألعابك وإعداداتك.</item>
-    </plurals>
     <string name="xbox_content_title">محتوى Xbox</string>
     <string name="xbox_content_unavailable">لا تتوفر حزم محتوى مرخّصة للحاسوب لهذه اللعبة.</string>
     <string name="xbox_content_update">%1$s · تحديث / تحقق</string>

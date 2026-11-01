@@ -147,7 +147,7 @@ class ExecmodRebakeTest(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp())
         cls.lib = cls.tmp / "libnoexec.so"
         subprocess.run(["cc", "-O2", "-Wall", "-Werror", "-fPIC", "-shared", "-pthread", "-DNOEXEC_TEST", "-o", str(cls.lib),
-                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), "-ldl"], check=True)
+                        str(PRELOAD / "noexec.c"), str(PRELOAD / "fsync.c"), str(PRELOAD / "robust.c"), str(PRELOAD / "writewatch.c"), str(PRELOAD / "clockpause.c"), "-ldl"], check=True)
         (cls.tmp / "execmod.c").write_text(EXECMOD)
         cls.execmod = cls.tmp / "libexecmod.so"
         subprocess.run(["cc", "-O2", "-fPIC", "-shared", "-o", str(cls.execmod), str(cls.tmp / "execmod.c")], check=True)

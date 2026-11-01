@@ -40,8 +40,11 @@ cat() {
     def test_disabled_pinning_takes_precedence_over_explicit_cores(self):
         self.assertEqual('', self.cores('run', '6,7', pin='0'))
 
-    def test_desktop_keeps_its_fast_core_default(self):
-        self.assertEqual('6,7', self.cores('lxqt'))
+    def test_desktop_keeps_all_cores_when_few_are_above_the_minimum(self):
+        # Reconciled with PR #953: on 6+2 layouts pinning the desktop to the
+        # two prime cores starves it, so fewer than 4 fast cores keeps all of
+        # them (PR #1759's run-mode fix is unaffected: run stays unrestricted).
+        self.assertEqual('0,1,2,3,4,5,6,7', self.cores('lxqt'))
 
     def test_desktop_preserves_an_explicit_core_selection(self):
         self.assertEqual('0,1,2', self.cores('lxqt', '0,1,2'))

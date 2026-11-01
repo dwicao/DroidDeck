@@ -3883,7 +3883,6 @@
     <string name="xbox_content_update">%1$s · Update / verify</string>
     <string name="xbox_content_install">%1$s · Install</string>
     <string name="xbox_choose_pc_content">Choose PC content</string>
-    <string name="xbox_cloud_gaming">Xbox Cloud Gaming</string>
     <string name="xbox_guide_hint">Guide twice opens this menu; Back or Guide closes it.</string>
     <string name="xbox_native_engine_note">Native engine (experimental): Google\'s WebRTC and DroidDeck\'s own compositor, so DroidDeck frame generation (DDFG) or LSFG can add frames. LSFG uses the Lossless.dll DroidDeck already uses for games. Screen effects apply to the web engine.</string>
     <string name="xbox_reset_picture">Reset picture</string>

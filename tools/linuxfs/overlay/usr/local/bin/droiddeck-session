@@ -270,7 +270,7 @@ program_cores() {
   if [ -n "${BL_GAME_CPUS:-}" ]; then echo "$BL_GAME_CPUS"; return 0; fi
   [ "$mode" = run ] && return 0
   local root=${BL_CPU_SYSFS:-/sys/devices/system/cpu}
-  local f n max min= list=
+  local f n max min= list= all= fast=0
   for f in "$root"/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
     [ -z "$min" ] || [ "$max" -lt "$min" ] && min=$max
@@ -279,9 +279,13 @@ program_cores() {
   for f in "$root"/cpu[0-9]*/cpufreq/cpuinfo_max_freq; do
     max=$(cat "$f" 2>/dev/null) || continue
     n=${f#"$root"/cpu}; n=${n%%/*}
-    [ "$max" -gt "$min" ] && list="$list${list:+,}$n"
+    all="$all${all:+,}$n"
+    if [ "$max" -gt "$min" ]; then
+      list="$list${list:+,}$n"
+      fast=$((fast + 1))
+    fi
   done
-  echo "$list"
+  if [ "$fast" -ge 4 ]; then echo "$list"; else echo "$all"; fi
 }
 
 if [ -z "${BL_INSIDE:-}" ]; then
