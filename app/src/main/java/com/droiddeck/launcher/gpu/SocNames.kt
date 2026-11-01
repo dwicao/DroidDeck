@@ -28,6 +28,7 @@ object SocNames {
         "sm6150" to "Snapdragon 730/730G", "sm7150" to "Snapdragon 730/730G",
         "hamoa" to "Snapdragon X Elite", "purwa" to "Snapdragon X Plus",
         "sc8380xp" to "Snapdragon X Elite", "x1e80100" to "Snapdragon X Elite",
+        "pineapple" to "Snapdragon 8 Gen 3", "sun" to "Snapdragon 8 Elite", "canoe" to "Snapdragon 8 Elite Gen 5",
     )
 
     fun model(prop: (String) -> String = GpuInfo::systemProperty): String {
@@ -39,8 +40,13 @@ object SocNames {
 
     internal fun normalizedModel(model: String): String = model.trim().uppercase().removePrefix("QTI ").trim()
 
-    fun name(model: String, platform: String = GpuInfo.systemProperty("ro.board.platform")): String? =
-        MODELS[normalizedModel(model)] ?: PLATFORMS[platform.lowercase()]?.let { "$it family" }
+    fun name(model: String, platform: String = GpuInfo.systemProperty("ro.board.platform")): String? {
+        val key = normalizedModel(model)
+        return MODELS[key]
+            // Samsung's "for Galaxy" parts only add -AC; other suffixes are different chips.
+            ?: key.removeSuffix("-AC").takeIf { it != key }?.let { MODELS[it] }
+            ?: PLATFORMS[platform.trim().lowercase()]?.let { "$it family" }
+    }
 
     fun label(model: String = model(), platform: String = GpuInfo.systemProperty("ro.board.platform")): String {
         val name = name(model, platform)

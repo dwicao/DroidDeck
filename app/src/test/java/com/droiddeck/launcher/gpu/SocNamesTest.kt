@@ -15,6 +15,10 @@ class SocNamesTest {
 
     @Test fun knownModelsAndPlatformsGetTheirNames() {
         assertEquals("Snapdragon 8 Gen 2", SocNames.name("QCS8550", ""))
+        assertEquals("Snapdragon 870", SocNames.name("SM8250-AC", "kona"))
+        assertEquals("Snapdragon 8 Gen 3", SocNames.name("SM8650-AC", "pineapple"))
+        assertEquals("Snapdragon 8 Elite", SocNames.name("SM8750-AC", "sun"))
+        assertEquals("Snapdragon 8 Elite Gen 5", SocNames.name("SM8850-AC", "canoe"))
         assertEquals("Snapdragon 8 Gen 3 family", SocNames.name("SG8350P", "pineapple"))
         assertEquals("Snapdragon 730G", SocNames.name("SM7150-AB", "sm6150"))
         assertEquals("Snapdragon 730/730G family", SocNames.name("UNKNOWN", "sm6150"))
@@ -22,8 +26,10 @@ class SocNamesTest {
         assertEquals("Snapdragon X Elite", SocNames.name("X1E80100", ""))
         assertEquals("Snapdragon X Elite family", SocNames.name("other", "hamoa"))
         assertEquals("Snapdragon X Plus family", SocNames.name("other", "purwa"))
+        assertEquals("Snapdragon 8 Elite Gen 5 family", SocNames.name("", "canoe"))
         assertNull(SocNames.name("XYZ123", "nowhere"))
         assertEquals("Snapdragon 8 Gen 2 (QCS8550)", SocNames.label("QCS8550", ""))
+        assertEquals("Snapdragon 8 Elite Gen 5 (SM8850-AC)", SocNames.label("SM8850-AC", "canoe"))
         assertEquals("Snapdragon 8 Gen 3 family (SG8350P)", SocNames.label("SG8350P", "pineapple"))
         assertEquals("Snapdragon X Elite (SC8380XP)", SocNames.label("SC8380XP", "hamoa"))
         assertEquals("Snapdragon X Elite family (other)", SocNames.label("other", "hamoa"))
