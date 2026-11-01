@@ -17,6 +17,16 @@ object SteamLanguage {
         "PR", "PY", "SV", "US", "UY", "VE",
     )
 
+    /** The selected Steam language, or the launcher language when unset or invalid. */
+    fun selected(context: android.content.Context): String {
+        val saved = SessionPrefs.steamLanguage(context)
+        if (saved in all) return saved
+        return forLocale(
+            com.droiddeck.launcher.core.AppLanguage.effective(context),
+            com.droiddeck.launcher.core.AppLanguage.system(context).country,
+        )
+    }
+
     fun forLocale(locale: Locale, region: String? = null): String {
         val country = locale.country.ifEmpty { region.orEmpty() }
         return when (locale.language) {

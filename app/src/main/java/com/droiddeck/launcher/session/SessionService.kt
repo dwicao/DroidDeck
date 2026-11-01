@@ -882,10 +882,7 @@ class SessionService : Service() {
         guest.add("PATH=" + LinuxRuntime.GUEST_PATH)
         guest.add("TERM=xterm-256color")
         guest.add("LANG=C.UTF-8")
-        guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.forLocale(
-            com.droiddeck.launcher.core.AppLanguage.effective(this),
-            com.droiddeck.launcher.core.AppLanguage.system(this).country,
-        ))
+        guest.add("BL_STEAM_LANGUAGE=" + SteamLanguage.selected(this))
         guest.add("TZ=" + java.util.TimeZone.getDefault().id)
         if (SessionState.mode == MODE_STEAM) SessionPrefs.pendingShaderPrecache(this)?.let { guest.add("BL_SHADER_PRECACHE=" + if (it) "1" else "0") }
         guest.add("XDG_RUNTIME_DIR=" + LinuxRuntime.GUEST_RUNTIME_DIR)

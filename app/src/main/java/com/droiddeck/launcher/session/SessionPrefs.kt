@@ -1022,6 +1022,13 @@ object SessionPrefs {
         prefs(context).edit().putString("steamClientArch", id).apply()
     }
 
+    /** The Steam client's language, or "" to follow the launcher language. */
+    fun steamLanguage(context: Context): String = prefs(context).getString("steamLanguage", null).orEmpty()
+
+    fun setSteamLanguage(context: Context, language: String) {
+        prefs(context).edit().putString("steamLanguage", language).apply()
+    }
+
     /** The running session's client, else the selected one: a changed setting applies from the next session. */
     fun activeSteamClientArch(context: Context): String =
         SessionState.steamClientArch?.takeIf { SessionState.running } ?: steamClientArch(context)

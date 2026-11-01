@@ -507,6 +507,7 @@ class FrontEndActivity : ComponentActivity() {
     private var x86FexDebug by mutableStateOf(false)
     private var forceSsbs by mutableStateOf(false)
     private var steamClientArch by mutableStateOf("arm64")
+    private var steamLanguage by mutableStateOf("")
     private var runSteamAtStartup by mutableStateOf(false)
     private var mountSharedStorage by mutableStateOf(true)
     private var bootMovie by mutableStateOf(com.droiddeck.launcher.session.BootMovie.DROIDDECK_30)
@@ -2638,6 +2639,7 @@ class FrontEndActivity : ComponentActivity() {
                 forceSsbs = forceSsbs,
                 syncBackend = if (mode == SessionService.MODE_STEAM) SessionPrefs.syncBackendOf(fastSync, fsyncFirst, syncFallback) else null,
                 steamClientArch = if (mode == SessionService.MODE_STEAM) steamClientArch else null,
+                steamLanguage = if (mode == SessionService.MODE_STEAM) steamLanguage else null,
                 returnAfterGame = if (mode == SessionService.MODE_STEAM) returnAfterGame else null,
                 shaderPrecache = if (mode == SessionService.MODE_STEAM) shaderPrecache else null,
                 steamRepairQueued = steamRepairQueued,
@@ -2713,6 +2715,11 @@ class FrontEndActivity : ComponentActivity() {
                     syncFallback = SessionPrefs.syncFallback(this)
                 },
                 onSteamRepair = { steamRepairQueued = SteamRepair.queue(this) },
+                onSteamLanguage = { language ->
+                    SessionPrefs.setSteamLanguage(this, language)
+                    steamLanguage = language
+                    refresh()
+                },
                 onSteamClientArch = { id ->
                     SessionPrefs.setSteamClientArch(this, id)
                     steamClientArch = id
@@ -2925,6 +2932,7 @@ class FrontEndActivity : ComponentActivity() {
         fsyncFirst = SessionPrefs.fsyncFirst(this)
         syncFallback = SessionPrefs.syncFallback(this)
         steamClientArch = SessionPrefs.steamClientArch(this)
+        steamLanguage = SessionPrefs.steamLanguage(this)
         steamRepairQueued = SteamRepair.queued(this)
         mangoapp = SessionPrefs.mangoapp(this)
         returnAfterGame = SessionPrefs.returnAfterGame(this)

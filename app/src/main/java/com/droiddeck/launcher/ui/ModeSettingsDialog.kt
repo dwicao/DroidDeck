@@ -80,6 +80,8 @@ class ModeSettings(
     val picturePosition: String? = null,
     val stretch16x9: Boolean? = null,
     val steamClientArch: String? = null,
+    /** Steam only: null hides the row; "" follows the launcher language. */
+    val steamLanguage: String? = null,
     /** Steam only: a game launched from the front end returns there when it closes; null hides the row. */
     val returnAfterGame: Boolean? = null,
     /** Steam only: the client's Shader Pre-Caching setting; null hides the row. */
@@ -135,6 +137,7 @@ class ModeSettingsActions(
     val onStretch16x9: (Boolean) -> Unit = {},
     val onSteamRepair: () -> Unit = {},
     val onSteamClientArch: (String) -> Unit = {},
+    val onSteamLanguage: (String) -> Unit = {},
     val onMangoapp: (Boolean) -> Unit = {},
     val onReturnAfterGame: (Boolean) -> Unit = {},
     val onShaderPrecache: (Boolean) -> Unit = {},
@@ -535,6 +538,14 @@ fun ModeSheetRows(s: ModeSettings, a: ModeSettingsActions, tab: String, extras: 
                 clientArchHint(stringResource(R.string.common_applies_next_session), x64FexVersion(LocalContext.current)),
                 listOf("arm64" to stringResource(R.string.mode_client_arch_arm64), "x86_64" to stringResource(R.string.mode_client_arch_x64)), s.steamClientArch,
                 onPick = a.onSteamClientArch,
+            )
+            if (s.steamLanguage != null) ChoiceRow(
+                host, "steamLanguage", stringResource(R.string.mode_steam_language),
+                stringResource(R.string.mode_steam_language_hint),
+                listOf("" to stringResource(R.string.mode_steam_language_follow)) +
+                    com.droiddeck.launcher.session.SteamLanguage.all.sorted().map { it to it },
+                s.steamLanguage,
+                onPick = a.onSteamLanguage,
             )
         }
         if (s.bootMovie != null) BootMovieGroup(s, a, host)
