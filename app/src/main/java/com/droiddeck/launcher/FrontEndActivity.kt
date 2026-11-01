@@ -175,6 +175,8 @@ class FrontEndActivity : ComponentActivity() {
     private var vramCapMb by mutableStateOf(0)
     private var gpuClockPin by mutableStateOf(false)
     private var thermalGuard by mutableStateOf(false)
+    private var performanceBoost by mutableStateOf(false)
+    private var boostCheck by mutableStateOf(false)
     private var prootNoSeccomp by mutableStateOf(false)
     private var prootFastPath by mutableStateOf(true)
     private var cursorComposite by mutableStateOf(false)
@@ -2423,6 +2425,7 @@ class FrontEndActivity : ComponentActivity() {
             gamescopeRealtime = gamescopeRealtime,
             gpuClockPin = gpuClockPin,
             thermalGuard = thermalGuard,
+            performanceBoost = performanceBoost, boostCheck = boostCheck,
             ramCapMb = ramCapMb, vramCapMb = vramCapMb, zramClient = zramClient,
             deviceRamMb = (android.app.ActivityManager.MemoryInfo()
                 .also((getSystemService(ACTIVITY_SERVICE) as android.app.ActivityManager)::getMemoryInfo).totalMem / (1024 * 1024)).toInt(),
@@ -2441,6 +2444,8 @@ class FrontEndActivity : ComponentActivity() {
             onGamescopeRealtime = { on -> SessionPrefs.setGamescopeRealtime(this, on); gamescopeRealtime = on },
             onGpuClockPin = { on -> SessionPrefs.setGpuClockPin(this, on); gpuClockPin = on },
             onThermalGuard = { on -> SessionPrefs.setThermalGuard(this, on); thermalGuard = on },
+            onPerformanceBoost = { on -> SessionPrefs.setPerformanceBoost(this, on); performanceBoost = on },
+            onBoostCheck = { on -> SessionPrefs.setBoostCheck(this, on); boostCheck = on },
             onRamCapMb = { mb -> SessionPrefs.setRamCapMb(this, mb); ramCapMb = mb },
             onZramClient = { on -> SessionPrefs.setZramClient(this, on); zramClient = on },
             onVramCapMb = { mb -> SessionPrefs.setVramCapMb(this, mb); vramCapMb = mb },
@@ -2660,6 +2665,8 @@ class FrontEndActivity : ComponentActivity() {
         vramCapMb = SessionPrefs.vramCapMb(this)
         gpuClockPin = SessionPrefs.gpuClockPin(this)
         thermalGuard = SessionPrefs.thermalGuard(this)
+        performanceBoost = SessionPrefs.performanceBoost(this)
+        boostCheck = SessionPrefs.boostCheck(this)
         prootNoSeccomp = SessionPrefs.prootNoSeccomp(this)
         prootFastPath = SessionPrefs.prootFastPath(this)
         cursorComposite = SessionPrefs.cursorComposite(this)
