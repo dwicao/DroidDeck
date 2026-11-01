@@ -253,8 +253,6 @@
     <string name="mode_ratio">نسبة أبعاد الشاشة</string>
     <string name="mode_ratio_custom">تحددها الدقة المخصّصة.</string>
     <string name="mode_ratio_auto">يستخدم الخيار «تلقائي» نسبة 16:9 على الأقل.</string>
-    <string name="mode_fps">حد معدل الإطارات</string>
-    <string name="mode_fps_note">يحدد معدل إطارات الجلسة كاملة. تنتقل الشاشة إلى معدل تحديث يقبل القسمة على الحد بالتساوي.</string>
     <string name="mode_hdr">HDR</string>
     <string name="mode_hdr10">خرج HDR10</string>
     <string name="mode_hdr_unavailable">غير متاح: %1$s.</string>
@@ -784,7 +782,6 @@
     <string name="drawer_relative_mouse_on">تشغيل</string>
     <string name="drawer_relative_mouse_off">إيقاف</string>
     <string name="drawer_direct_cursor">المؤشر</string>
-    <string name="drawer_pc_keyboard">لوحة مفاتيح الحاسوب</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">الشاشة الثانية</string>
     <string name="drawer_second_screen_mode">الوضع</string>
@@ -1236,15 +1233,12 @@
     <string name="games_import_saves">استيراد الحفظ…</string>
     <string name="games_export_gamehub">تصدير بصيغة GameHub المضغوطة…</string>
     <string name="games_export_winlator">تصدير بصيغة Winlator المضغوطة…</string>
-    <string name="games_manage_saves">إدارة ملفات الحفظ</string>
     <string name="games_open_save_folder">فتح مجلد الحفظ</string>
     <string name="games_never_played">لم تُشغّل من قبل</string>
     <string name="games_runtime_busy_percent">بيئة التشغيل مشغولة · %1$d%%</string>
     <string name="games_runtime_busy">بيئة التشغيل مشغولة</string>
     <string name="games_runtime_update">يتوفر تحديث لبيئة التشغيل</string>
     <string name="games_runtime_ready">● بيئة التشغيل جاهزة</string>
-    <string name="games_runtime_first_play">تُثبَّت بيئة التشغيل عند أول تشغيل</string>
-    <string name="games_last_played">آخر تشغيل: %1$s</string>
     <string name="games_internal">التخزين الداخلي</string>
     <string name="games_added">لعبة مضافة</string>
     <string name="games_custom">لعبة مخصصة</string>
@@ -1314,7 +1308,6 @@
     <string name="second_show_keyboard">إظهار لوحة المفاتيح</string>
     <string name="second_terminal">الوحدة الطرفية لـ Linux</string>
     <string name="second_terminal_not_ready">جلسة Linux ليست جاهزة للوحدة الطرفية بعد.</string>
-    <string name="second_hide_keyboard">إخفاء لوحة المفاتيح</string>
     <string name="rail_steam">Steam</string>
     <string name="rail_games">المكتبة</string>
     <string name="rail_desktop">سطح المكتب</string>
@@ -2249,7 +2242,6 @@
     <string name="display_follow_half">النصف</string>
     <string name="display_follow_third">الثلث</string>
     <string name="display_follow_quarter">الربع</string>
-    <string name="display_frame_rate">معدل الإطارات</string>
     <string name="mode_tab_steam">Steam</string>
     <string name="device_info_show">عرض تفاصيل الجهاز</string>
     <string name="device_info_hide">إخفاء تفاصيل الجهاز</string>
@@ -2268,7 +2260,6 @@
     <string name="setup_stores_engine">محرك المتاجر</string>
     <string name="setup_stores_engine_chip_ready">● المحرك جاهز</string>
     <string name="setup_stores_engine_chip_missing">غير مبنيّ</string>
-    <string name="setup_stores_open_on">فتح المتجر على</string>
     <string name="stores_tier_balanced">متوازن</string>
     <string name="stores_tier_fast">سريع</string>
     <string name="stores_tier_max">أقصى سرعة</string>
@@ -2278,7 +2269,6 @@
     <string name="stores_tabs_arrange">ترتيب التبويبات</string>
     <string name="stores_tabs_arrange_done">تم</string>
     <string name="stores_chip_signed_out">(لم يتم تسجيل الدخول)</string>
-    <string name="stores_tab_store">المتجر</string>
     <string name="stores_tab_library">المكتبة</string>
     <string name="stores_tab_all">الكل</string>
     <string name="stores_tab_downloads">التنزيلات</string>
