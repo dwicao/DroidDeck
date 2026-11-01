@@ -750,7 +750,6 @@
     <string name="drawer_relative_mouse_on">På</string>
     <string name="drawer_relative_mouse_off">Av</string>
     <string name="drawer_direct_cursor">Markör</string>
-    <string name="drawer_pc_keyboard">PC-tangentbord</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Andra skärmen</string>
     <string name="drawer_second_screen_mode">Läge</string>
@@ -1256,7 +1255,6 @@
     <string name="deck_left_trackpad">Vänster styrplatta</string>
     <string name="second_trackpad">Styrplatta</string>
     <string name="second_show_keyboard">Visa tangentbord</string>
-    <string name="second_hide_keyboard">Dölj tangentbord</string>
     <string name="second_terminal">Linux-terminal</string>
     <string name="second_terminal_not_ready">Linux-sessionen är inte redo för en terminal än.</string>
     <string name="rail_steam">Steam</string>
@@ -1286,8 +1284,6 @@
     <string name="proton_remove_body">Spel som är inställda på den här versionen måste bytas till en annan Proton.</string>
     <string name="proton_install_now">Installera nu</string>
     <string name="proton_cancel_queued">Avbryt kön</string>
-    <string name="pckb_android">Android-tangentbord</string>
-    <string name="pckb_hide">Dölj  ✕</string>
     <string name="main_launch_named">Starta %1$s</string>
     <string name="main_choose_screen">Välj en skärm. Sekundär: %1$s.</string>
     <string name="main_secondary_gone">Den sekundära skärmen är inte längre tillgänglig.</string>

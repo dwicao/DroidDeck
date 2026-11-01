@@ -750,7 +750,6 @@
     <string name="drawer_relative_mouse_on">चालू</string>
     <string name="drawer_relative_mouse_off">बंद</string>
     <string name="drawer_direct_cursor">कर्सर</string>
-    <string name="drawer_pc_keyboard">पीसी कीबोर्ड</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">दूसरी स्क्रीन</string>
     <string name="drawer_second_screen_mode">मोड</string>
@@ -1256,7 +1255,6 @@
     <string name="deck_left_trackpad">बायां ट्रैकपैड</string>
     <string name="second_trackpad">ट्रैकपैड</string>
     <string name="second_show_keyboard">कीबोर्ड दिखाएं</string>
-    <string name="second_hide_keyboard">कीबोर्ड छिपाएं</string>
     <string name="second_terminal">Linux टर्मिनल</string>
     <string name="second_terminal_not_ready">Linux सेशन अभी टर्मिनल के लिए तैयार नहीं है।</string>
     <string name="rail_steam">Steam</string>
@@ -1286,8 +1284,6 @@
     <string name="proton_remove_body">इस वर्शन पर सेट गेम को किसी और Proton पर बदलना होगा।</string>
     <string name="proton_install_now">अभी इंस्टॉल करें</string>
     <string name="proton_cancel_queued">पेंडिंग रद्द करें</string>
-    <string name="pckb_android">Android कीबोर्ड</string>
-    <string name="pckb_hide">छिपाएं  ✕</string>
     <string name="main_launch_named">%1$s लॉन्च करें</string>
     <string name="main_choose_screen">स्क्रीन चुनें। सेकेंडरी: %1$s।</string>
     <string name="main_secondary_gone">सेकेंडरी डिस्प्ले अब उपलब्ध नहीं है।</string>

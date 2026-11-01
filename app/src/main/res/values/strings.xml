@@ -820,8 +820,8 @@
     <string name="drawer_relative_mouse_on">On</string>
     <string name="drawer_relative_mouse_off">Off</string>
     <string name="drawer_direct_cursor">Cursor</string>
-    <string name="drawer_pc_keyboard">PC keyboard</string>
-    <string name="drawer_android_keyboard">Android</string>
+    <string name="drawer_steam_keyboard">Steam keyboard</string>
+    <string name="drawer_android_keyboard">Android keyboard</string>
     <string name="drawer_second_screen">Second screen</string>
     <string name="drawer_second_screen_mode">Mode</string>
     <string name="drawer_second_screen_shows">Shows</string>
@@ -1387,7 +1387,6 @@
     <string name="deck_left_trackpad">Left trackpad</string>
     <string name="second_trackpad">Trackpad</string>
     <string name="second_show_keyboard">Show keyboard</string>
-    <string name="second_hide_keyboard">Hide keyboard</string>
     <string name="second_terminal">Linux terminal</string>
     <string name="second_terminal_not_ready">The Linux session isn\'t ready for a terminal yet.</string>
     <string name="rail_steam">Steam</string>

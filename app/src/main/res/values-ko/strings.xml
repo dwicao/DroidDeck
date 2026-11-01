@@ -748,7 +748,6 @@
     <string name="drawer_relative_mouse_on">켜기</string>
     <string name="drawer_relative_mouse_off">끄기</string>
     <string name="drawer_direct_cursor">커서</string>
-    <string name="drawer_pc_keyboard">PC 키보드</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">보조 화면</string>
     <string name="drawer_second_screen_mode">모드</string>
@@ -1252,7 +1251,6 @@
     <string name="deck_left_trackpad">왼쪽 터치패드</string>
     <string name="second_trackpad">터치패드</string>
     <string name="second_show_keyboard">키보드 표시</string>
-    <string name="second_hide_keyboard">키보드 숨기기</string>
     <string name="second_terminal">Linux 터미널</string>
     <string name="second_terminal_not_ready">Linux 세션이 준비되지 않아 터미널을 사용할 수 없습니다.</string>
     <string name="rail_steam">Steam</string>
@@ -1282,8 +1280,6 @@
     <string name="proton_remove_body">이 버전으로 설정된 게임은 다른 Proton으로 전환해야 합니다.</string>
     <string name="proton_install_now">지금 설치</string>
     <string name="proton_cancel_queued">대기 취소</string>
-    <string name="pckb_android">Android 키보드</string>
-    <string name="pckb_hide">숨기기 ✕</string>
     <string name="main_launch_named">%1$s 실행</string>
     <string name="main_choose_screen">화면을 선택하세요. 보조 화면: %1$s.</string>
     <string name="main_secondary_gone">보조 화면을 사용할 수 없습니다.</string>

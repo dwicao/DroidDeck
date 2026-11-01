@@ -750,7 +750,6 @@
     <string name="drawer_relative_mouse_on">Päällä</string>
     <string name="drawer_relative_mouse_off">Pois</string>
     <string name="drawer_direct_cursor">Osoitin</string>
-    <string name="drawer_pc_keyboard">PC-näppäimistö</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Toinen näyttö</string>
     <string name="drawer_second_screen_mode">Tila</string>
@@ -1256,7 +1255,6 @@
     <string name="deck_left_trackpad">Vasen kosketuslevy</string>
     <string name="second_trackpad">Kosketuslevy</string>
     <string name="second_show_keyboard">Näytä näppäimistö</string>
-    <string name="second_hide_keyboard">Piilota näppäimistö</string>
     <string name="second_terminal">Linux-pääte</string>
     <string name="second_terminal_not_ready">Linux-istunto ei ole vielä valmis päätteelle.</string>
     <string name="rail_steam">Steam</string>
@@ -1286,8 +1284,6 @@
     <string name="proton_remove_body">Tähän versioon asetetut pelit on vaihdettava toiseen Protoniin.</string>
     <string name="proton_install_now">Asenna nyt</string>
     <string name="proton_cancel_queued">Peruuta jonotus</string>
-    <string name="pckb_android">Android-näppäimistö</string>
-    <string name="pckb_hide">Piilota  ✕</string>
     <string name="main_launch_named">Käynnistä %1$s</string>
     <string name="main_choose_screen">Valitse näyttö. Toinen näyttö: %1$s.</string>
     <string name="main_secondary_gone">Toinen näyttö ei ole enää käytettävissä.</string>

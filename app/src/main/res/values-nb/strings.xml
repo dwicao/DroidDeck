@@ -750,7 +750,6 @@
     <string name="drawer_relative_mouse_on">På</string>
     <string name="drawer_relative_mouse_off">Av</string>
     <string name="drawer_direct_cursor">Peker</string>
-    <string name="drawer_pc_keyboard">PC-tastatur</string>
     <string name="drawer_android_keyboard">Android</string>
     <string name="drawer_second_screen">Andre skjerm</string>
     <string name="drawer_second_screen_mode">Modus</string>
@@ -1256,7 +1255,6 @@
     <string name="deck_left_trackpad">Venstre styreflate</string>
     <string name="second_trackpad">Styreflate</string>
     <string name="second_show_keyboard">Vis tastatur</string>
-    <string name="second_hide_keyboard">Skjul tastatur</string>
     <string name="second_terminal">Linux-terminal</string>
     <string name="second_terminal_not_ready">Linux-sesjonen er ikke klar for en terminal ennå.</string>
     <string name="rail_steam">Steam</string>
@@ -1286,8 +1284,6 @@
     <string name="proton_remove_body">Spill satt til denne versjonen må byttes til en annen Proton.</string>
     <string name="proton_install_now">Installer nå</string>
     <string name="proton_cancel_queued">Avbryt i kø</string>
-    <string name="pckb_android">Android-tastatur</string>
-    <string name="pckb_hide">Skjul  ✕</string>
     <string name="main_launch_named">Start %1$s</string>
     <string name="main_choose_screen">Velg en skjerm. Sekundær: %1$s.</string>
     <string name="main_secondary_gone">Den sekundære skjermen er ikke tilgjengelig lenger.</string>
