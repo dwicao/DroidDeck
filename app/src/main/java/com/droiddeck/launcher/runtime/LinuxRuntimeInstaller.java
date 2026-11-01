@@ -695,6 +695,10 @@ public final class LinuxRuntimeInstaller {
         return new File(file.getParentFile(), ".dd-part-" + Integer.toHexString(file.getName().hashCode()));
     }
 
+    private static void requireNotInterrupted() throws InterruptedIOException {
+        if (Thread.currentThread().isInterrupted()) throw new InterruptedIOException("Runtime installation was interrupted");
+    }
+
     private static void place(File part, File file) throws IOException {
         java.nio.file.Path path = file.toPath();
         if (Files.isDirectory(path, java.nio.file.LinkOption.NOFOLLOW_LINKS)) Files.delete(path);
