@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.stores.xbox
 
+import androidx.compose.ui.res.stringResource
+import com.droiddeck.launcher.R
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -314,7 +316,7 @@ class XboxCloudPlayerActivity : ComponentActivity() {
                             MenuEntry("Stream quality", "Resolution, region, language, codec, bitrate (next stream)", entries[3], 3) { menuPage = "stream" }
                             MenuEntry("Performance overlay and sound", "Overlay level and layout, volume, controller rumble", entries[4], 4) { menuPage = "overlay" }
                             MenuEntry("Leave", "End the stream", entries[5], 5) { finish() }
-                            androidx.compose.material3.Text("Guide twice opens this menu; Back or Guide closes it.",
+                            androidx.compose.material3.Text(stringResource(R.string.xbox_guide_hint),
                                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                                 modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                         } else {

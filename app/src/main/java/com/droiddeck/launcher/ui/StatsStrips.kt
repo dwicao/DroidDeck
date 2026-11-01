@@ -102,7 +102,7 @@ private fun LogoHeader(clock: String, game: String?) {
     val colors = MaterialTheme.colorScheme
     Row(Modifier.fillMaxWidth().padding(horizontal = 2.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
         DroidDeckLogo(16.dp)
-        Text("DroidDeck", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
+        Text(stringResource(R.string.app_name), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground)
         Text(game.orEmpty(), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = colors.onBackground, textAlign = TextAlign.Center,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f))
         if (clock.isNotEmpty()) Text(clock, fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant)
@@ -187,7 +187,7 @@ private fun PanelStrip(d: StripData) {
         Column(Modifier.widthIn(min = 84.dp)) {
             Row(verticalAlignment = Alignment.Bottom) {
                 Text(fpsText(d.fps), fontSize = 30.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace, color = accent, maxLines = 1)
-                Text(" fps", fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
+                Text(" " + stringResource(R.string.stats_fps_unit), fontSize = 12.sp, color = colors.onSurfaceVariant, modifier = Modifier.padding(bottom = 4.dp))
             }
             Text(d.fps?.takeIf { it > 0f }?.let { "%.1f ms".format(1000f / it) } ?: stringResource(R.string.stats_fps_needs_hud),
                 fontSize = 12.sp, fontFamily = FontFamily.Monospace, color = colors.onSurfaceVariant, maxLines = 1)

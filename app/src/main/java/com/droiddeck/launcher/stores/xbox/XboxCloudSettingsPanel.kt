@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.stores.xbox
 
+import androidx.compose.ui.res.stringResource
+import com.droiddeck.launcher.R
 import com.droiddeck.launcher.ui.glideBorder
 import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.ui.focusGlide
@@ -111,9 +113,7 @@ private fun PanelContent(
             Choice("Frame generation", XboxNativeVideo.modes(lsfg).map { it to XboxNativeVideo.modeName(it) }, settings.frameGen) {
                 onChange(settings.copy(frameGen = it))
             }
-            Text("Native engine (experimental): Google's WebRTC and DroidDeck's own compositor, so DroidDeck frame generation " +
-                "(DDFG) or LSFG can add frames. LSFG uses the Lossless.dll DroidDeck already uses for games. Screen effects " +
-                "apply to the web engine.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+            Text(stringResource(R.string.xbox_native_engine_note), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(start = 8.dp, bottom = 6.dp))
         }
         // The service picks the size from the reported device profile (the PC profile can send 1440p).
@@ -150,9 +150,9 @@ private fun PanelContent(
         Toggle("Toon", "Cartoon outlines.", settings.toon) { onChange(settings.copy(toon = it)) }
         Choice("Frame-rate cap", listOf(0 to "Off", 30 to "30 fps", 45 to "45 fps", 60 to "60 fps"), settings.maxFps) { onChange(settings.copy(maxFps = it)) }
         Row(Modifier.fillMaxWidth().padding(top = 6.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            OutlinedButton(onClick = { onChange(settings.withoutEffects()) }, modifier = Modifier.focusGlide(CircleShape)) { Text("Reset picture") }
+            OutlinedButton(onClick = { onChange(settings.withoutEffects()) }, modifier = Modifier.focusGlide(CircleShape)) { Text(stringResource(R.string.xbox_reset_picture)) }
         }
-        Text("Effects cost a little GPU time; with none set the stream is shown directly.", style = MaterialTheme.typography.bodySmall,
+        Text(stringResource(R.string.xbox_effects_note), style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(top = 4.dp))
     }
 
@@ -183,8 +183,7 @@ private fun PanelContent(
         }
         Choice("Overlay layout", listOf("horizontal" to "Horizontal", "vertical" to "Vertical"), settings.statsLayout) { onChange(settings.copy(statsLayout = it)) }
         Choice("Overlay position", listOf("right" to "Top right", "left" to "Top left"), settings.statsCorner) { onChange(settings.copy(statsCorner = it)) }
-        Text("Basic: fps, ping, resolution. Detailed: + bitrate, decode time, packet loss. Full: + codec, jitter, " +
-            "dropped frames, server.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.xbox_stats_levels), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         if (section != "overlay-native") Step("Volume", "${settings.volume}%", { onChange(settings.copy(volume = (settings.volume - 25).coerceAtLeast(100))) },
             { onChange(settings.copy(volume = (settings.volume + 25).coerceAtMost(300))) })
         Step("Controller rumble", if (settings.rumble == 0) "Off" else "${settings.rumble}%", { onChange(settings.copy(rumble = (settings.rumble - 25).coerceAtLeast(0))) },
@@ -275,7 +274,7 @@ private fun <T> Choice(label: String, options: List<Pair<T, String>>, selected: 
     Step(label, options.getOrNull(index)?.second ?: "",
         { if (options.isNotEmpty()) onSelect(options[(index - 1 + options.size) % options.size].first) },
         { if (options.isNotEmpty()) onSelect(options[(index + 1) % options.size].first) })
-    if (needsRestart) Text("Takes effect when you restart the stream.", style = MaterialTheme.typography.bodySmall,
+    if (needsRestart) Text(stringResource(R.string.xbox_restart_note), style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.tertiary, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
 }
 
@@ -289,7 +288,7 @@ private fun Toggle(label: String, note: String, checked: Boolean, needsRestart: 
         Spacer(Modifier.width(8.dp))
         Switch(checked = checked, onCheckedChange = onToggle, modifier = noFocus)
     }
-    if (needsRestart) Text("Takes effect when you restart the stream.", style = MaterialTheme.typography.bodySmall,
+    if (needsRestart) Text(stringResource(R.string.xbox_restart_note), style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.tertiary, modifier = Modifier.padding(start = 8.dp, bottom = 4.dp))
 }
 

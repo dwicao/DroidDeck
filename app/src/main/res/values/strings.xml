@@ -3883,4 +3883,14 @@
     <string name="xbox_content_update">%1$s · Update / verify</string>
     <string name="xbox_content_install">%1$s · Install</string>
     <string name="xbox_choose_pc_content">Choose PC content</string>
+    <string name="xbox_cloud_gaming">Xbox Cloud Gaming</string>
+    <string name="xbox_guide_hint">Guide twice opens this menu; Back or Guide closes it.</string>
+    <string name="xbox_native_engine_note">Native engine (experimental): Google\'s WebRTC and DroidDeck\'s own compositor, so DroidDeck frame generation (DDFG) or LSFG can add frames. LSFG uses the Lossless.dll DroidDeck already uses for games. Screen effects apply to the web engine.</string>
+    <string name="xbox_reset_picture">Reset picture</string>
+    <string name="xbox_effects_note">Effects cost a little GPU time; with none set the stream is shown directly.</string>
+    <string name="xbox_stats_levels">Basic: fps, ping, resolution. Detailed: + bitrate, decode time, packet loss. Full: + codec, jitter, dropped frames, server.</string>
+    <string name="xbox_restart_note">Takes effect when you restart the stream.</string>
+    <string name="xbox_lsfg_note">LSFG appears here once DroidDeck has the Lossless.dll (frame generation settings).</string>
+    <string name="xbox_zero_copy_note">Zero-copy is used while frame generation is Off; picking a frame generation mode switches to the compositor live.</string>
+    <string name="stats_fps_unit">fps</string>
 </resources>

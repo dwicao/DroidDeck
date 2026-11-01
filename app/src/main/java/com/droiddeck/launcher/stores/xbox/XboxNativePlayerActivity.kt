@@ -1,5 +1,7 @@
 package com.droiddeck.launcher.stores.xbox
 
+import androidx.compose.ui.res.stringResource
+import com.droiddeck.launcher.R
 import androidx.compose.foundation.shape.CircleShape
 import com.droiddeck.launcher.ui.focusGlide
 import android.content.Context
@@ -642,7 +644,7 @@ class XboxNativePlayerActivity : ComponentActivity() {
                                 else "Overlay: " + listOf("", "FPS only", "Basic", "Detailed", "Full")[current.statsLevel] + ", " + current.statsLayout,
                                 entries[5], { lastMainEntry = 5 }) { menuPage = "overlay-native" }
                             XboxMenuEntry("Leave", "End the stream", entries[6], { lastMainEntry = 6 }) { finish() }
-                            androidx.compose.material3.Text("Guide twice opens this menu; Back or Guide closes it.",
+                            androidx.compose.material3.Text(stringResource(R.string.xbox_guide_hint),
                                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                                 modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                         }
@@ -657,11 +659,11 @@ class XboxNativePlayerActivity : ComponentActivity() {
                                     else -> "Show the stream's own frames only"
                                 }, choices[i]) { current = current.copy(frameGen = mode); setFrameGen(mode) }
                             }
-                            if (!lsfg) androidx.compose.material3.Text("LSFG appears here once DroidDeck has the Lossless.dll (frame generation settings).",
+                            if (!lsfg) androidx.compose.material3.Text(stringResource(R.string.xbox_lsfg_note),
                                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                                 modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                             if (current.zeroCopy) androidx.compose.material3.Text(
-                                "Zero-copy is used while frame generation is Off; picking a frame generation mode switches to the compositor live.",
+                                stringResource(R.string.xbox_zero_copy_note),
                                 style = androidx.compose.material3.MaterialTheme.typography.bodySmall, color = cs.onSurfaceVariant,
                                 modifier = androidx.compose.ui.Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
                             XboxCloudSettingsPanel(current, regionNames, live = true, section = "latency", restoreRow = null,
