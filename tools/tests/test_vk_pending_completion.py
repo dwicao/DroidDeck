@@ -40,6 +40,7 @@ typedef uintptr_t VkFence;
 #define VK_TIMEOUT 2
 #define VK_ERROR_DEVICE_LOST -4
 #define VK_ERROR_OUT_OF_HOST_MEMORY -1
+#define VK_ERROR_UNKNOWN -13
 static int g_dev_state, g_base_black;
 static uintptr_t g_dev = 1;
 static struct { int64_t wait_ns, wait_max_ns; unsigned waits; } g_perf;
@@ -83,7 +84,7 @@ int main(void) {
     assert(destroyed==1 && unmapped==1 && freed_memory==1 && forgotten==1);
     unsigned first_errors=errors;
     assert(first_errors>0);
-    assert(timed_wait(1, 1000)==VK_TIMEOUT);
+    assert(timed_wait(1, 1000)==VK_ERROR_UNKNOWN);
     assert(errors==first_errors); /* one terminal diagnostic, no repeated recovery */
     free(pending); /* fake GPU exists only in this test */
 

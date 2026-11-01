@@ -123,6 +123,8 @@ static void quarantine_pending_work(VkResult result, const char *where) {
 
 /* vkWaitForFences on the compositor's own work, timed for the perf line. */
 static VkResult timed_wait(VkFence fence, uint64_t timeout) {
+    if (g_dev_state != 1)
+        return g_dev_state == -2 ? VK_ERROR_DEVICE_LOST : VK_ERROR_UNKNOWN;
     int64_t t0 = perf_now();
     VkResult r = g_vk.WaitForFences(g_dev, 1, &fence, VK_TRUE, timeout);
     perf_add(&g_perf.wait_ns, &g_perf.wait_max_ns, &g_perf.waits, perf_now() - t0);
@@ -317,6 +319,7 @@ int vkp_has_window(void) {
 }
 
 int vkp_device_lost(void) { return g_dev_state == -2; }
+int vkp_completion_unknown(void) { return g_dev_state == -3; }
 
 void vk_present_set_scale_mode(int mode, int alignment) {
     if (mode < VKP_MODE_OFF || mode > VKP_MODE_INTEGER) mode = VKP_MODE_FIT;
@@ -1157,8 +1160,10 @@ struct vkp_image *vkp_image_create_shm(int w, int h) {
     return img;
 }
 
+/* Between successfully completed frames the GPU is idle. After an unconfirmed
+ * wait, retain the mapped bytes too: the previous submit may still read them. */
 void vkp_image_upload_shm(struct vkp_image *img, const void *data, int stride) {
-    if (!img || !img->map || !data) return;
+    if (g_dev_state != 1 || !img || !img->map || !data) return;
     size_t rowbytes = (size_t)img->w * 4;
     if ((size_t)stride < rowbytes) rowbytes = (size_t)stride;
     for (int y = 0; y < img->h; y++)
@@ -1551,6 +1556,7 @@ static void record_screen_blit(VkCommandBuffer cmd, VkImage src, int src_w, int 
 
 static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
     for (int attempt = 0; ; attempt++) {
+        if (g_dev_state != 1) return -1;
         if (!g_swapchain && (!first || swap_init() != 0)) return -1;
         const int64_t t_acq = perf_now();
         VkResult ar = g_vk.AcquireNextImageKHR(g_dev, g_swapchain, 1000000000ULL, g_acqs[k], VK_NULL_HANDLE, img);
@@ -1560,7 +1566,7 @@ static int acquire_image(int k, int first, uint32_t *img, VkResult *ar_out) {
         if (ar == VK_ERROR_OUT_OF_DATE_KHR || ar == VK_ERROR_SURFACE_LOST_KHR) {
             droiddeck_log("gpu", "screen surface %s on acquire: rebuilding the swapchain", vk_result_name(ar));
             destroy_swapchain();
-            if (first && attempt == 0) continue;
+            if (first && attempt == 0 && g_dev_state == 1) continue;
             return -1;
         }
         droiddeck_log("error", "present: acquire %d failed (%s %d)", k, vk_result_name(ar), (int)ar);
@@ -1677,6 +1683,7 @@ static void send_hdr_metadata(const struct droiddeck_color *c) {
 static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, int n,
                        const struct vkp_hdr_frame *hf, int *how) {
     if (how) *how = 0;
+    if (g_dev_state < 0) return -1;
     vkp_apply_window_request();
     sc_layer_hide_base();
     check_surface_changed();
@@ -1904,6 +1911,10 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         if (k > 0) {
             VkResult ark;
             if (acquire_image(k, 0, &img, &ark) != 0) {
+                /* Teardown may have retained this frame's pending work, or
+                 * acquire may have reported real device loss. Neither permits
+                 * a completion-marker submit or another fence wait. */
+                if (g_dev_state != 1) return -1;
                 droiddeck_log("framegen", "present %d/%d: no swapchain image; the frame ends early", k + 1, presents);
                 pr = VK_ERROR_OUT_OF_DATE_KHR;
                 break;
@@ -1935,7 +1946,8 @@ static int render_impl(int scene_w, int scene_h, const struct vkp_draw *draws, i
         pr = g_vk.QueuePresentKHR(g_queue, &pi);
         perf_add(&g_perf.present_ns, &g_perf.present_max_ns, &g_perf.presents, perf_now() - t_pres);
         if (k < ngen) presented_gen++;
-        if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR || pr == VK_ERROR_DEVICE_LOST) break;
+        if (pr == VK_ERROR_DEVICE_LOST) { device_lost("present"); return -1; }
+        if (pr == VK_ERROR_OUT_OF_DATE_KHR || pr == VK_ERROR_SURFACE_LOST_KHR) break;
     }
     if (!fence_submitted) {
         VkSubmitInfo si = {.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO};
@@ -2357,8 +2369,9 @@ static int pass_begin_impl(int scene_w, int scene_h, const struct vkp_draw *draw
 int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
     if (!g_pass.active) { if (wait_fd >= 0) close(wait_fd); return -1; }
     g_pass.active = 0;
+    if (g_dev_state != 1) { if (wait_fd >= 0) close(wait_fd); return -1; }
     VkCommandBuffer cmd = g_cmds[0];
-    if (!dst || !dst->blit_dst || g_dev_state == -2) {
+    if (!dst || !dst->blit_dst) {
         if (wait_fd >= 0) close(wait_fd);
         g_vk.EndCommandBuffer(cmd);
         return -1;
@@ -2410,7 +2423,8 @@ int vkp_pass_copy_to(struct vkp_image *dst, int wait_fd) {
 void vkp_pass_abort(void) {
     if (!g_pass.active) return;
     g_pass.active = 0;
-    g_vk.EndCommandBuffer(g_cmds[0]);
+    if (g_dev_state == 1)
+        g_vk.EndCommandBuffer(g_cmds[0]); /* never submitted; reset before its next use */
 }
 
 void vkp_set_low_latency(int on) { atomic_store(&g_low_latency_want, on ? 1 : 0); }
