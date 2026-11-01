@@ -766,6 +766,15 @@ jobs:
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 
+      - name: Diagnose prepared-components workspace state
+        run: |
+          git status --porcelain=v1 | head -30
+          echo '--- untracked files under recipe inputs ---'
+          git ls-files --others --exclude-standard -- \
+            tools/aaudio-sink tools/directaudio tools/proot tools/components/recipes \
+            tools/linuxfs tools/quest tools/gamescope tools/wlroots tools/mangoapp tools/msitools \
+            tools/pipewire tools/vr app/src/main/cpp/waylandcomp app/src/main/cpp/venc_proto.h \
+            app/src/main/assets/pulseaudio.tzst | head -40
       - uses: actions/download-artifact@v4
         with:
           name: prepared-components
