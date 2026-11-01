@@ -775,6 +775,10 @@ jobs:
             tools/linuxfs tools/quest tools/gamescope tools/wlroots tools/mangoapp tools/msitools \
             tools/pipewire tools/vr app/src/main/cpp/waylandcomp app/src/main/cpp/venc_proto.h \
             app/src/main/assets/pulseaudio.tzst | head -40
+          echo '--- recomputed recipe identities (compare with manifest) ---'
+          python3 tools/components/prepare.py plan | sort | head -20
+          python3 --version
+          git --version
       - uses: actions/download-artifact@v4
         with:
           name: prepared-components
