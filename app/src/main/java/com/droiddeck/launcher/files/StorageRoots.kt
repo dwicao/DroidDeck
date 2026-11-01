@@ -131,6 +131,7 @@ object StorageRoots {
             val entry = volumeOf(mount.name)
             if (entry.label == null) entry.label = mount.name
             entry.candidates += mount
+        }
         // A USB drive Android hides from apps, mounted with root or reachable with All files access.
         GameStorage.usbDrive(context)?.let { usb ->
             volumeOf(usb.name).apply {

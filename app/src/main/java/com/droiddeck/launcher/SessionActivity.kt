@@ -450,6 +450,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
     private var achievementsOpen by mutableStateOf(false)
     private var hudOn by mutableStateOf(true)
     private var hudConfig by mutableStateOf<Map<String, String>>(emptyMap())
+    private var hudFps by mutableStateOf(true)
+    private var hudBattery by mutableStateOf(true)
+    private var hudGraph by mutableStateOf(true)
     private var hudColor by mutableStateOf(SessionPrefs.HUD_COLOR_MINT)
     private var hudOpacity by mutableStateOf(SessionPrefs.HUD_OPACITY_DEFAULT)
     private var upscaler by mutableStateOf(0)
@@ -1279,6 +1282,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             androidApps = androidApps,
             hudOn = hudOn,
             hudConfig = hudConfig,
+            hudFps = hudFps,
+            hudBattery = hudBattery,
+            hudGraph = hudGraph,
+            hudColor = hudColor,
+            hudOpacity = hudOpacity,
             upscaler = upscaler, upscaleSharpness = upscaleSharpness,
             effects = effects,
             cardboard = cardboard,
@@ -1319,6 +1327,11 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             externalOutput = if (externalOutputAvailable || externalOutput) externalOutput else null,
             onExternalOutput = ::chooseExternalOutput,
             onHud = { on -> SessionPrefs.setHudEnabled(this@SessionActivity, on); hudOn = on; hud.refresh() },
+            onHudFps = { on -> SessionPrefs.setHudShowFps(this@SessionActivity, on); hudFps = on; hud.refresh() },
+            onHudBattery = { on -> SessionPrefs.setHudShowBattery(this@SessionActivity, on); hudBattery = on; hud.refresh() },
+            onHudGraph = { on -> SessionPrefs.setHudShowGraph(this@SessionActivity, on); hudGraph = on; hud.refresh() },
+            onHudColor = { c -> SessionPrefs.setHudColor(this@SessionActivity, c); hudColor = c; hud.refresh() },
+            onHudOpacity = { p -> SessionPrefs.setHudOpacity(this@SessionActivity, p); hudOpacity = p; hud.refresh() },
             onHudSetting = { key, value -> hudConfig = DroidDeckHudConfig.set(this@SessionActivity, key, value); hud.applyConfig() },
             onHudReset = { hudConfig = DroidDeckHudConfig.reset(this@SessionActivity); hud.applyConfig() },
             onHudExport = { exportHudDiagnostics() },
@@ -2024,6 +2037,9 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         picturePosition = SessionPrefs.picturePosition(this)
         hudOn = SessionPrefs.hudEnabled(this)
         hudConfig = DroidDeckHudConfig.load(this)
+        hudFps = SessionPrefs.hudShowFps(this)
+        hudBattery = SessionPrefs.hudShowBattery(this)
+        hudGraph = SessionPrefs.hudShowGraph(this)
         hudColor = SessionPrefs.hudColor(this)
         hudOpacity = SessionPrefs.hudOpacity(this)
         upscaler = SessionPrefs.upscaler(this)
@@ -2607,7 +2623,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val changed = kotlin.math.abs(SessionState.refreshHz - hz) > 0.1f
         SessionState.refreshHz = hz
         if (CompositorHost.isStarted) {
-            CompositorHost.updatePacing(hz, outputFpsLimit())
+            val plan = pacePlan(hz)
+            SessionState.fpsLimit = plan.guestFps
+            CompositorHost.updatePacing(hz, plan.guestFps, plan.outputHz)
+            notePacing(hz, plan)
             pushCardboard(activeCardboard, hz)
             if (changed && ::surfaceView.isInitialized) applyFrameGen(hz)
         }
@@ -2623,6 +2642,8 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
                 if (seq != frameGenSeq) return@Thread
                 FrameGen.apply(this, hz) to Lossless.state(this)
             }
+            val armed = problem == null && FrameGen.ready(this)
+            val plan = pacePlan(hz, armed)
             runOnUiThread {
                 if (synchronized(frameGenLock) { seq != frameGenSeq }) return@runOnUiThread
                 lossless = state
@@ -2914,10 +2935,10 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             Log.i(TAG, String.format(java.util.Locale.ROOT, "back key device=%d (%s) source=0x%x flags=0x%x",
                 event.deviceId, event.device?.name, event.source, event.flags))
         }
-        val mouseToGuest = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !gestureSettingsOpen &&
+        val mouseToGuest = !pipUi && !screenKeyTextFocus && !drawerOpen && !keyboardVisible && !achievementsOpen && !gestureSettingsOpen &&
             !SessionState.suspended && !(::loading.isInitialized && (loading.visible || loading.ended))
         if (mouseBackInput.onKeyEvent(event, mouseToGuest)) return true
-        val backToQam = !pipUi && !screenKeyTextFocus && !drawerOpen && !pcKeyboardOpen && !achievementsOpen &&
+        val backToQam = !pipUi && !screenKeyTextFocus && !drawerOpen && !keyboardVisible && !achievementsOpen &&
             SessionState.mode == SessionService.MODE_STEAM && SessionState.running && SessionState.firstFrameSeen &&
             !SessionState.suspended && padBridge?.canHoldQam() == true
         if (backQamInput.onKeyEvent(event, backToQam)) {
@@ -2957,7 +2978,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
             if (drawerOpen && !drawerControllerActive) focusDrawer()
             drawerControllerActive = true
         }
-        if ((drawerOpen || pcKeyboardOpen || achievementsOpen || gestureSettingsOpen || screenKeyPickerOpen || screenKeyEdit != null) &&
+        if ((drawerOpen || keyboardVisible || achievementsOpen || gestureSettingsOpen || screenKeyPickerOpen || screenKeyEdit != null) &&
             com.droiddeck.launcher.ui.ActiveGlideWindows.dispatchKeyEvent(window?.decorView, event)
         ) {
             return true
@@ -4248,7 +4269,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
         val mappedTouchpad = Build.VERSION.SDK_INT >= 37 &&
             HardwareButtonMapping.hasConnectedTouchpadBinding(this)
         val want = (pointerLocked && mouseAttached() || mappedTouchpad) && resumed &&
-            hasWindowFocus() && !drawerOpen && !pcKeyboardOpen && !achievementsOpen && !pipUi
+            hasWindowFocus() && !drawerOpen && !keyboardVisible && !achievementsOpen && !pipUi
         val absolute = want && mappedTouchpad && !pointerLocked
         if (want == view.hasPointerCapture() && (!want || absolute == absoluteTouchpadCapture)) return
         if (!want) {
@@ -4278,7 +4299,7 @@ class SessionActivity : ComponentActivity(), SurfaceHolder.Callback {
      * phone, which then shows [GlassesPhonePanel] instead of the game.
      */
     private fun appUiOwnsPointer(): Boolean =
-        drawerOpen || pcKeyboardOpen || achievementsOpen || pipUi || glassesOutputActive
+        drawerOpen || keyboardVisible || achievementsOpen || pipUi || glassesOutputActive
 
     /**
      * Over the game neither this app nor Android draws a pointer: the compositor's cursor is the

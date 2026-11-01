@@ -1263,9 +1263,8 @@ class FrontEndActivity : ComponentActivity() {
                         busy = busy, stage = stage, percent = percent,
                         desktopInstalled = desktopInstalled, desktopPresent = desktopPresent,
                         offlineAccount = offlineAccount, offline = offline,
-                        frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled,
-                        gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         frameGenLabel = frameGenLabel, romsDir = romsDir, logsEnabled = logsEnabled, logLevel = logLevel,
+                        gameDebugLogsEnabled = gameDebugLogsEnabled, gameDebugLogsNeedsRestart = gameDebugLogsNeedsRestart,
                         vacDiagnostics = vacDiagnostics, agentCommands = agentCommands,
                         clearCachedApps = clearCachedApps, adbPaired = adbPaired, memoryHud = memoryHud, backgroundAppLimit = backgroundAppLimit,
                         bluetoothAllowed = bluetoothAllowed, allFilesAllowed = allFilesAllowed,
@@ -2044,6 +2043,9 @@ class FrontEndActivity : ComponentActivity() {
         compatLaunchVisible = false
         if (android.os.Build.VERSION.SDK_INT >= 29) com.droiddeck.launcher.ui.DualScreenPanel.ownerPaused(taskId, true)
         updates.onPause()
+        dualSenseOutputBridge?.stop()
+        dualSenseManager?.stop()
+        releaseLauncherDualSenseKeys()
         super.onPause()
     }
 
@@ -2165,14 +2167,6 @@ class FrontEndActivity : ComponentActivity() {
         lastDsState = null
     }
 
-    override fun onPause() {
-        compatLaunchVisible = false
-        dualSenseOutputBridge?.stop()
-        dualSenseManager?.stop()
-        releaseLauncherDualSenseKeys()
-        super.onPause()
-    }
-
     override fun onStart() {
         super.onStart()
         registerReceiver(wifiLocationReceiver, android.content.IntentFilter(android.location.LocationManager.MODE_CHANGED_ACTION))
@@ -2200,7 +2194,6 @@ class FrontEndActivity : ComponentActivity() {
         super.onSaveInstanceState(outState)
         outState.putString(KEY_SAVE_PICKER_OWNER, savePickerOwner)
         if (slowUsbNever) SessionPrefs.setSlowUsbWarningOff(this)
-        outState.putString(KEY_SAVE_PICKER_OWNER, savePickerOwner)
         saveCompatLaunch(outState)
         pendingSwitch?.let { outState.putParcelable(KEY_PENDING_SWITCH, it) }
         switchingTo?.let {

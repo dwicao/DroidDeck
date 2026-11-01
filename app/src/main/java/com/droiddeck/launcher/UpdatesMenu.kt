@@ -75,7 +75,6 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
                 .onFailure { error = activity.getString(R.string.upd_unknown_apps_failed); pending = null }
         },
         onDismissPermission = { askPermission = false; pending = null; continueReady = false },
-        onDismissPermission = { askPermission = false; pending = null },
         onSourcesChanged = ::sourcesChanged,
         onSource = ::chooseSource,
     )
@@ -188,8 +187,7 @@ internal class UpdatesMenu(private val activity: Activity, private val ui: Handl
         if (!RepositorySources.isCurrent(activity, AppUpdates.SOURCE_SCOPE, AppUpdates.sourceBuiltIns(), sourceId, sourceGeneration)) {
             error = activity.getString(R.string.upd_no_download)
             return
-                if (!RepositorySources.isCurrent(
-                        activity, AppUpdates.SOURCE_SCOPE, AppUpdates.sourceBuiltIns(), sourceId, sourceGeneration,
+        }
         val target = "${r.version ?: r.title.ifBlank { r.tag }} (${r.commit.take(7)})"
         AppUpdateService.start(activity, apk, target)
     }

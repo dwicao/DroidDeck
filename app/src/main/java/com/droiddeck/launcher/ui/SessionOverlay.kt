@@ -213,6 +213,11 @@ class DrawerActions(
     val androidApps: List<HomeApp.LaunchableApp>,
     val hudOn: Boolean,
     val hudConfig: Map<String, String> = emptyMap(),
+    val hudFps: Boolean = true,
+    val hudBattery: Boolean = true,
+    val hudGraph: Boolean = true,
+    val hudColor: String = com.droiddeck.launcher.session.SessionPrefs.HUD_COLOR_MINT,
+    val hudOpacity: Int = com.droiddeck.launcher.session.SessionPrefs.HUD_OPACITY_DEFAULT,
     val frameGen: FrameGen.Mode,
     val lossless: Lossless.State,
     val oscMode: String,
@@ -246,6 +251,11 @@ class DrawerActions(
     val secondScreenDisplays: List<SecondScreenDisplay>,
     val selectedSecondScreenDisplay: Int,
     val onHud: (Boolean) -> Unit,
+    val onHudFps: (Boolean) -> Unit = {},
+    val onHudBattery: (Boolean) -> Unit = {},
+    val onHudGraph: (Boolean) -> Unit = {},
+    val onHudColor: (String) -> Unit = {},
+    val onHudOpacity: (Int) -> Unit = {},
     val onHudSetting: (String, String) -> Unit = { _, _ -> },
     val onHudReset: () -> Unit = {},
     val onHudExport: () -> Unit = {},
@@ -753,11 +763,7 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                                         stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
                                         chipModifier = focus.track(page, "unfolded-controls-with-controller"),
                                         onChange = a.onUnfoldedControlsWithController)
-                                if (a.steam && a.unfoldedControls == true) ToggleRow(host, "unfolded-controls-with-controller",
-                                    stringResource(R.string.unfolded_controls_with_controller),
-                                    stringResource(R.string.unfolded_controls_with_controller_hint), a.unfoldedControlsWithController,
-                                    chipModifier = focus.track(page, "unfolded-controls-with-controller"),
-                                    onChange = a.onUnfoldedControlsWithController)
+                                }
                                 a.controller?.let { c ->
                                     val dsCtx = LocalContext.current
                                     val dsStatus = com.droiddeck.launcher.input.DualSenseManager.liveStatus

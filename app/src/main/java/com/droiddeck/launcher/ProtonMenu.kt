@@ -32,7 +32,8 @@ internal class ProtonMenu(
     var protonStage by Operation.stage
     var protonPercent by Operation.percent
     var protonProblem by Operation.problem
-    private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val inFlightChecks = java.util.concurrent.atomic.AtomicInteger(0)
+    private val checkRequest = java.util.concurrent.atomic.AtomicInteger(0)
     @VisibleForTesting internal var installer: (ProtonExtras.Tool, (String, Int) -> Unit) -> String? =
         { tool, progress -> ProtonExtras.install(activity, tool, progress) }
 

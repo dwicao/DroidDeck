@@ -713,7 +713,8 @@ object SessionPrefs {
 
     /** Whether the game's busiest threads are named to the power HAL for a boost (GameThreadHints). */
     fun gameThreadHints(context: Context): Boolean = prefs(context).getBoolean("gameThreadHints", true)
-     * The performance boost: the game's busiest threads named to the power HAL (GameThreadHints) and,
+
+    /** The performance boost: the game's busiest threads named to the power HAL (GameThreadHints) and,
      * on a Samsung phone, Samsung's clock floors (SamsungPerf).
      */
     fun performanceBoost(context: Context): Boolean = prefs(context).getBoolean("performanceBoost", GameThreadHints.measuredHere)
@@ -1511,6 +1512,8 @@ object SessionPrefs {
 
     fun setExternalGameOutput(context: Context, enabled: Boolean) {
         prefs(context).edit().putBoolean("externalGameOutput", enabled).apply()
+    }
+
     fun foldedAspect(context: Context): String =
         prefs(context).getString("foldedAspect", null)?.takeIf { it in SessionDisplay.FOLDED_ASPECTS }
             ?: SessionDisplay.FOLDED_16X9
