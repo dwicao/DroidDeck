@@ -30,6 +30,9 @@ class EffectsSourceResolutionTest(unittest.TestCase):
             'static int draw_to_scene_blit(', 'static int effects_source_draw(',
             'static void effects_source_note(',
             'static void effects_overlay_draws(',
+            'static void quarantine_pending_work(',
+            'static int find_opaque_cover(',
+            'static int scene_fully_replaced(',
             'static int render_impl(', 'static int pass_begin_impl('))
         functions = (re.search(r'static int spatial_mode\([^\n]+', effects).group() + '\n' +
                      function(effects, 'int vkp_effects_upscaling(') +
@@ -171,7 +174,7 @@ static struct {
     int (*EndCommandBuffer)(int, ...), (*ResetFences)(int, ...);
     int (*QueueSubmit)(int, ...), (*QueuePresentKHR)(int, ...);
 } g_vk = {noop, noop, note_barriers, noop, noop, noop, noop, noop};
-static int g_dev_state, g_window = 1, g_swapchain, g_swap_extra;
+static int g_dev_state = 1, g_window = 1, g_swapchain, g_swap_extra;
 static _Atomic int g_low_latency_want;
 static int g_low_latency;
 static int g_colorspace_ext, g_swap_hdr_unavailable, g_swap_is_hdr, g_swap_hdr_want;

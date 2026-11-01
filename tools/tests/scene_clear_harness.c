@@ -206,6 +206,8 @@ void droiddeck_log(const char *tag, const char *fmt, ...) { }
 void vkp_pass_abort(void) { record(11); g_pass.active = 0; }
 int vkp_update_map(int w, int h) { record(12); record(w); record(h); return map_fail ? -1 : 0; }
 int vkp_effects_active(void) { return effects_on; }
+int vkp_effects_upscaling(void) { return 0; }
+int vkp_effects_postprocessing(void) { return 0; }
 void vkp_effects_set_formats(VkFormat src, VkFormat dst) { record(13); record(src); record(dst); }
 VkImage vkp_effects_run(VkCommandBuffer cmd, VkImage scene, int sw, int sh, int ow, int oh, int *rw, int *rh) {
     record(14); record(image_id(scene)); record(sw); record(sh); record(ow); record(oh);

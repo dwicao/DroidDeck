@@ -112,7 +112,10 @@ def build_harness(source, folder, compiler, headers, sanitize=False):
     helpers = "static int find_opaque_cover(" in source
     if helpers:
         names += ["static int find_opaque_cover(", "static int scene_fully_replaced("]
-    names += ["static void record_draw(", "static int compose_hdr(", "static int pass_begin_impl(",
+    names += ["static void record_draw("]
+    names += ["static int effects_source_draw(", "static void effects_source_note(",
+              "static void effects_overlay_draws("]
+    names += ["static int compose_hdr(", "static int pass_begin_impl(",
               "int vkp_pass_begin(", "int vkp_pass_begin_hdr("]
     (folder / "present_functions.inc").write_text(
         "#define HAS_COVER_HELPERS %d\n" % helpers + "\n".join(function(source, name) for name in names))
