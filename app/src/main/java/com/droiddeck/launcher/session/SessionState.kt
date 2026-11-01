@@ -45,6 +45,9 @@ object SessionState {
 
     @Volatile
     var running = false
+
+    @Volatile
+    var orcaActive = false
     @Volatile
     var activityDisplayId = 0
     @Volatile

@@ -37,6 +37,7 @@ import com.droiddeck.launcher.runtime.LinuxRuntime
 import com.droiddeck.launcher.runtime.DesktopCatalog
 import com.droiddeck.launcher.runtime.LinuxRuntimeInstaller
 import com.droiddeck.launcher.runtime.LinuxFex
+import com.droiddeck.launcher.runtime.OrcaManager
 import com.droiddeck.launcher.runtime.DeckyManager
 import com.droiddeck.launcher.session.SessionService
 import com.droiddeck.launcher.ui.PackageRow
@@ -154,6 +155,14 @@ class FrontEndActivity : ComponentActivity() {
     private var capturedHardwareKey: Pair<Int, Int>? = null
     private var capturedHardwareMouse: Pair<Int, Int>? = null
     private var hardwareBindings by mutableStateOf<List<HardwareButtonMapping.Binding>>(emptyList())
+    // Accessibility page: Orca in the runtime, the switch for sessions, and an install in flight.
+    private var orcaInstalled by mutableStateOf(false)
+    private var orcaEnabled by mutableStateOf(false)
+    private var orcaBusy by mutableStateOf(false)
+    private var orcaStage by mutableStateOf<String?>(null)
+    private var orcaError by mutableStateOf<String?>(null)
+    private var saveBusy: String? = null
+    private var onSavePicked: ((File) -> Unit)? = null
     private var controllerSettings by mutableStateOf<ControllerPrefs.Settings?>(null)
     private var catalog by mutableStateOf<List<DesktopCatalog.Entry>?>(null)
     private var catalogLoading by mutableStateOf(false)
@@ -1260,6 +1269,11 @@ class FrontEndActivity : ComponentActivity() {
                         storesSort = storesSort,
                         storesView = storesView,
                         storeDownloadsActive = com.droiddeck.launcher.stores.StoresState.activeDownloads,
+                        orcaInstalled = orcaInstalled,
+                        orcaEnabled = orcaEnabled,
+                        orcaBusy = orcaBusy,
+                        orcaStage = orcaStage,
+                        orcaError = orcaError,
                     ),
                     FrontEndActions(
                         onPlay = { playSteam() },
@@ -1359,8 +1373,55 @@ class FrontEndActivity : ComponentActivity() {
                         },
                         onProtons = { openProtons() },
                         onComponents = { focusContent -> openComponents(focusContent) },
+                        // The Accessibility tab: the install runs off the main thread (GuestCommand),
+                        // like a store install; its milestones land on the page as they come.
+                        onOrcaInstall = {
+                            if (orcaBusy) return@FrontEndActions
+                            if (SessionState.running || LinuxRuntimeInstaller.isBusy()) {
+                                android.widget.Toast.makeText(this, R.string.accessibility_session_running, android.widget.Toast.LENGTH_LONG).show()
+                                return@FrontEndActions
+                            }
+                            orcaBusy = true
+                            orcaStage = null
+                            orcaError = null
+                            Thread({
+                                val message = OrcaManager.install(this) { stage, _ ->
+                                    ui.post { orcaStage = stage }
+                                }
+                                ui.post {
+                                    orcaBusy = false
+                                    orcaInstalled = OrcaManager.isInstalled(this)
+                                    orcaEnabled = OrcaManager.enabled(this)
+                                    if (message != null) orcaError = message
+                                    else android.widget.Toast.makeText(this, R.string.accessibility_installed_toast, android.widget.Toast.LENGTH_LONG).show()
+                                }
+                            }, "orca-install").start()
+                        },
+                        // Orca's own preferences open on the session's display: the running session's
+                        // droiddeck-orca answers the request. With no session running there is no
+                        // display to show the dialog on, so start a desktop session that carries it
+                        // (BL_ORCA is forced on for that session, so the request is answered even
+                        // when the reader is not enabled yet).
+                        onOrcaSettings = {
+                            if (SessionState.running && !SessionState.orcaActive) {
+                                android.widget.Toast.makeText(this, R.string.accessibility_restart_for_settings, android.widget.Toast.LENGTH_LONG).show()
+                                return@FrontEndActions
+                            }
+                            OrcaManager.requestSettings(this)
+                            if (!SessionState.running) startSession(
+                                Intent(this, SessionActivity::class.java)
+                                    .putExtra(SessionService.EXTRA_MODE, SessionService.MODE_DESKTOP)
+                                    .putExtra(SessionService.EXTRA_ORCA_SETTINGS, true),
+                            )
+                            android.widget.Toast.makeText(this, R.string.accessibility_settings_requested, android.widget.Toast.LENGTH_LONG).show()
+                        },
+                        onOrcaToggle = { on ->
+                            OrcaManager.setEnabled(this, on)
+                            orcaEnabled = on
+                        },
                         onGameComponents = { game -> openComponents(gameKey = game.profileKey) },
                         onComponentsTab = { tab -> openComponents(focusContent = true, tab = tab) },
+                        // A game page's Manage saves: the game's Proton and saves are read when the work runs, off the main thread.
                         onSaveImport = { sg -> importSaves(sg.name) { GameSaves.game(sg) } },
                         onSaveExport = { sg, layout -> exportSaves(sg.name, layout) { GameSaves.game(sg) } },
                         onPerformance = { refreshCores(); showComponents = false; showMapping = false; showPerformance = true },
@@ -1934,6 +1995,9 @@ class FrontEndActivity : ComponentActivity() {
             }, "components-queue").start()
         } else if (showComponents) components.refreshComponents()
         oscMode = SessionPrefs.oscMode(this)
+        // The Accessibility tab's state: whether Orca is in the runtime and turned on.
+        orcaInstalled = OrcaManager.isInstalled(this)
+        orcaEnabled = OrcaManager.enabled(this)
         refreshController()
         refreshHomeAppState()
         refreshSecondScreenDisplays()
