@@ -559,6 +559,35 @@ internal fun SessionDrawer(open: Boolean, requestedPage: SessionDrawerPage, cont
                         SessionDrawerPage.HUD -> DroidDeckHudSettings(host, a) { key -> focus.track(page, key) }
                         SessionDrawerPage.DISPLAY -> {
                             SettingsGroup(stringResource(R.string.drawer_page_display)) {
+                                if (a.externalOutput != null) ToggleRow(host, "external-output", stringResource(R.string.external_output),
+                                    stringResource(R.string.external_output_hint), a.externalOutput,
+                                    chipModifier = focus.track(page, "external-output"), onChange = a.onExternalOutput)
+                                ToggleRow(host, "hud", stringResource(R.string.drawer_hud), null, a.hudOn,
+                                    chipModifier = focus.track(page, "hud"), onChange = a.onHud)
+                                if (a.hudOn) {
+                                    ToggleRow(host, "hud-fps", stringResource(R.string.drawer_hud_fps), null, a.hudFps,
+                                        chipModifier = focus.track(page, "hud-fps"), onChange = a.onHudFps)
+                                    ToggleRow(host, "hud-battery", stringResource(R.string.drawer_hud_battery), null, a.hudBattery,
+                                        chipModifier = focus.track(page, "hud-battery"), onChange = a.onHudBattery)
+                                    ToggleRow(host, "hud-graph", stringResource(R.string.drawer_hud_graph), null, a.hudGraph,
+                                        chipModifier = focus.track(page, "hud-graph"), onChange = a.onHudGraph)
+                                    ChoiceRow(
+                                        host, "hud-color", stringResource(R.string.drawer_hud_color), null,
+                                        listOf(
+                                            SessionPrefs.HUD_COLOR_MINT to stringResource(R.string.drawer_hud_color_mint),
+                                            "white" to stringResource(R.string.drawer_hud_color_white),
+                                            "sky" to stringResource(R.string.drawer_hud_color_sky),
+                                            "amber" to stringResource(R.string.drawer_hud_color_amber),
+                                            "violet" to stringResource(R.string.drawer_hud_color_violet),
+                                        ),
+                                        a.hudColor, chipModifier = focus.track(page, "hud-color"), onPick = a.onHudColor,
+                                    )
+                                    SliderRow(
+                                        stringResource(R.string.drawer_hud_opacity), null, a.hudOpacity,
+                                        SessionPrefs.HUD_OPACITY_RANGE, step = 10, format = { "$it%" },
+                                        modifier = focus.track(page, "hud-opacity"), onChange = a.onHudOpacity,
+                                    )
+                                }
                                 val fgOpen = host.open == "fg"
                                 val offLabel = stringResource(R.string.frame_gen_off)
                                 val fgLabel = FrameGen.label(LocalContext.current, a.frameGen)
