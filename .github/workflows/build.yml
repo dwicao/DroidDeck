@@ -766,6 +766,10 @@ jobs:
           restore-keys: |
             cxx-${{ env.NDK_VERSION }}-
 
+      - uses: actions/download-artifact@v4
+        with:
+          name: prepared-components
+          path: app/build
       - name: Diagnose prepared-components workspace state
         run: |
           git status --porcelain=v1 | head -30
@@ -779,14 +783,32 @@ jobs:
           python3 tools/components/prepare.py plan | sort | head -20
           python3 --version
           git --version
-      - uses: actions/download-artifact@v4
-        with:
-          name: prepared-components
-          path: app/build
+          echo '--- manifest files vs disk files (pre-unpack) ---'
+          python3 - <<'PYEOF'
+          import json, sys, tarfile
+          sys.path.insert(0, 'tools/components')
+          import prepare
+          man = json.load(tarfile.open('app/build/prepared-components.tar.gz').extractfile('app/build/prepared-components.json'))
+          try:
+              disk = {n: prepare.digest(prepare.ROOT / n) for n in prepare.files(prepare.ROOT)}
+          except ValueError as e:
+              print('disk scan:', e)
+              disk = {}
+          mf, df = set(man['files']), set(disk)
+          print('manifest=%d disk=%d' % (len(mf), len(df)))
+          print('only_manifest=%s' % sorted(mf - df)[:20])
+          print('only_disk=%s' % sorted(df - mf)[:40])
+          print('changed=%s' % sorted(k for k in mf & df if man['files'][k] != disk[k])[:20])
+          PYEOF
       - name: Verify and unpack prepared components
         env:
           SOURCE_TREE: ${{ needs.source.outputs.tree-sha }}
-        run: python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
+        run: |
+          set -euo pipefail
+          git clean -fdx -- app/src/main/assets/linuxfs app/src/main/assets/directaudio \
+            app/src/main/assets/droiddeck-esync app/build/prepared-assets app/build/component-records \
+            app/src/main/jniLibs/arm64-v8a
+          python3 tools/components/prepare.py unpack --tree "$SOURCE_TREE"
 
       - uses: actions/download-artifact@v4
         with:
