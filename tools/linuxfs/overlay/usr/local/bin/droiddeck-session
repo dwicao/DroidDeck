@@ -421,6 +421,51 @@ bl_xprop_set_all() {
   done
   [ "$ok" = 1 ]
 }
+# While a game holds focus, keep asking gamescope to restore its window (un-minimize
+# + refocus, patch 0112) and snapshot the X focus state for the session logs: the one-shot
+# request on the 769->game transition can fail silently or be superseded while the game
+# is still coming up, which then looks like a permanent black screen.
+bl_game_focus_tick() {
+  local now=$SECONDS
+  case $1 in ''|*[!0-9]*|769) return 0 ;; esac
+  if [ "$restore" = 1 ] && [ $((now - restored_at)) -ge 10 ]; then
+    if bl_xprop_set_all GAMESCOPE_RESTORE_FOCUS_WINDOW 1; then
+      restored_at=$now
+      echo "== resume: re-asked gamescope to restore the game window (app $1)"
+    else
+      echo "== resume: restore request FAILED for the game window (app $1)"
+    fi
+  fi
+  if [ $((now - xdump_at)) -ge 30 ]; then
+    xdump_at=$now
+    bl_dump_xfocus "$1"
+  fi
+}
+# Snapshot the X focus state while a game holds focus: root focus properties on the
+# client's server plus every top-level window's state on both Xwaylands. Lands in the
+# session log folder (xfocus.log) so a black-screen report carries the live state.
+bl_dump_xfocus() {
+  [ -n "${BL_LOG:-}" ] || return 0
+  local dir f d win
+  dir=$(dirname "$BL_LOG")
+  [ -d "$dir" ] || return 0
+  f="$dir/xfocus.log"
+  [ "$(stat -c %s "$f" 2>/dev/null || echo 0)" -gt 1048576 ] && return 0
+  {
+    echo "== xfocus $(date +%T) focused=$1"
+    for d in $(bl_displays); do
+      echo "-- display $d"
+      DISPLAY=$d xprop -root GAMESCOPE_FOCUSED_APP GAMESCOPE_FOCUSED_WINDOW GAMESCOPE_FOCUSABLE_APPS GAMESCOPECTRL_BASELAYER_APPID 2>/dev/null | head -c 2000
+      echo
+      # shellcheck disable=SC2046
+      for win in $(DISPLAY=$d xprop -root _NET_CLIENT_LIST 2>/dev/null | tr ',' ' ' | awk '{for (i = 1; i <= NF; i++) if ($i ~ /^0x/) print $i}' | head -12); do
+        echo "--- window $win"
+        DISPLAY=$d xprop -id "$win" WM_STATE WM_CLASS STEAM_GAME _NET_WM_STATE _NET_WM_WINDOW_OPACITY 2>/dev/null | head -c 1200
+        echo
+      done
+    done
+  } >>"$f" 2>/dev/null
+}
 export GDK_BACKEND=x11 QT_QPA_PLATFORM=xcb SDL_VIDEODRIVER=x11
 reap_orphans() {
   local round p stat pid left
@@ -894,7 +939,7 @@ case $mode in
         pv=${pv# }
         pv=${pv:-$2}
       }
-      tmode= app= prev=
+      tmode= app= prev= restored_at=0 xdump_at=0
       while read -r line; do
         case $line in
           STEAM_TOUCH_CLICK_MODE*)
@@ -912,14 +957,19 @@ case $mode in
                 printf '%s\n' "$app" > "$BL_LAUNCH_DIR/steam-focused-app.tmp" && mv -f "$BL_LAUNCH_DIR/steam-focused-app.tmp" "$BL_LAUNCH_DIR/steam-focused-app"
               fi
             fi
-            [ "$restore" = 1 ] || continue
+            [ "$restore" = 1 ] || { prev=$pv; bl_game_focus_tick "$pv"; continue; }
             case $pv in ''|*[!0-9]*) prev=; continue ;; esac
             if [ "$prev" = 769 ] && [ "$pv" != 769 ]; then
               nap 1
-              bl_xprop_set_all GAMESCOPE_RESTORE_FOCUS_WINDOW 1 \
-                && echo "== resume: asked gamescope to restore the game window (app $pv)"
+              if bl_xprop_set_all GAMESCOPE_RESTORE_FOCUS_WINDOW 1; then
+                echo "== resume: asked gamescope to restore the game window (app $pv)"
+                restored_at=$SECONDS
+              else
+                echo "== resume: restore request FAILED for the game window (app $pv)"
+              fi
             fi
             prev=$pv
+            bl_game_focus_tick "$pv"
             ;;
           GAMESCOPE_NEW_SCALING_SCALER*)
             prop_value "$line" 0
